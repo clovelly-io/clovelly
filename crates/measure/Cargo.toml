@@ -1,0 +1,14 @@
+[package]
+name = "measure"
+description = "Predicts a cell image's RTMR1 and RTMR2 offline from its UKI and disk"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+aws-lc-rs.workspace = true
+common = { path = "../common" }
+thiserror.workspace = true

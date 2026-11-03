@@ -1,0 +1,361 @@
+// The control plane's APIs (SPEC.md "The control plane"). It never receives content:
+// the SDK asks it where to put a sandbox and talks to the cell for everything else.
+//
+// Control: customer-facing (and operator) gRPC over TLS on the control plane's public
+// address. Every call carries "authorization: Bearer <token>": an environment's token
+// (from PutEnvironment) for that environment's calls, or the operator token for any.
+// Calls marked "operator" refuse environment tokens.
+//
+// CellChannel: cells report to the control plane over TLS on its internal address; the
+// cell verifies the control plane's certificate against the control-plane CA baked
+// into the image. A report carries exactly the fixed telemetry set (SPEC.md
+// "Telemetry") and who is reporting.
+//
+// Errors end with a gRPC status whose trailing metadata "clovelly-error" holds one
+// ErrorReason name.
+syntax = "proto3";
+
+package clovelly.control.v1;
+
+service Control {
+  // Operator: creates or updates an environment and issues it a new token (the
+  // previous one stops working).
+  rpc PutEnvironment(PutEnvironmentRequest) returns (PutEnvironmentResponse);
+  // Creates or updates a sub-environment and its sandbox limits.
+  rpc PutSubenvironment(Subenvironment) returns (Subenvironment);
+  // Creates or updates a sub-environment's pool. Machine type, release and test
+  // metadata are operator fields; an environment token leaves them as they are.
+  rpc PutPool(Pool) returns (Pool);
+  rpc GetPool(GetPoolRequest) returns (PoolStatus);
+  // Picks a cell for a new sandbox, booting one when none can hold it (cold).
+  rpc PlaceSandbox(PlaceSandboxRequest) returns (Placement);
+  // Where an existing sandbox lives, for reconnecting by id.
+  rpc LocateSandbox(LocateSandboxRequest) returns (Placement);
+  // The SDK closed the sandbox: its capacity is free again. Best effort; a sandbox's
+  // capacity is also freed by its timeout and by the cell's reports.
+  rpc ReleaseSandbox(ReleaseSandboxRequest) returns (ReleaseSandboxResponse);
+  // Operator: asks a cell to drain (mutual TLS to the cell's Drain).
+  rpc DrainCell(DrainCellRequest) returns (DrainCellResponse);
+  // Cell-minutes billed to a sub-environment in [from, to).
+  rpc GetUsage(GetUsageRequest) returns (Usage);
+  // Stores a sealed credential (ciphertext from the customer's verifier) for a
+  // sub-environment's cells, replacing one of the same name.
+  rpc PutCredential(PutCredentialRequest) returns (PutCredentialResponse);
+  // Stores a template: the first message is the header, then its ciphertext in order
+  // (common::template's chunked format, which the SDK made under a key it got from the
+  // customer's verifier). Ciphertext only; the control plane cannot open it.
+  rpc PutTemplate(stream PutTemplateRequest) returns (PutTemplateResponse);
+  // The digest of a sub-environment's template by name.
+  rpc GetTemplate(GetTemplateRequest) returns (TemplateInfo);
+}
+
+service CellChannel {
+  rpc Report(CellReport) returns (CellReportAck);
+  // The sealed credentials of the reporting cell's sub-environment with these names;
+  // a name with none stored is left out. Ciphertext only.
+  rpc FetchCredentials(FetchCredentialsRequest) returns (FetchCredentialsResponse);
+  // Where the reporting cell's sub-environment keeps its ciphertext (templates and
+  // volumes) in Cloud Storage; the cell reads and writes those objects itself.
+  rpc GetStorage(GetStorageRequest) returns (Storage);
+  // Takes a volume's single-mounter lease for one sandbox: refused (VOLUME_BUSY) while
+  // another sandbox holds it. A lease ends at ReleaseVolume or when its cell is gone.
+  rpc AcquireVolume(AcquireVolumeRequest) returns (AcquireVolumeResponse);
+  rpc ReleaseVolume(ReleaseVolumeRequest) returns (ReleaseVolumeResponse);
+}
+
+enum ErrorReason {
+  ERROR_REASON_UNSPECIFIED = 0;
+  // UNAUTHENTICATED / PERMISSION_DENIED.
+  UNAUTHENTICATED = 1;
+  PERMISSION = 2;
+  // INVALID_ARGUMENT.
+  INVALID_REQUEST = 3;
+  // NOT_FOUND.
+  NO_SUCH_ENVIRONMENT = 4;
+  NO_SUCH_SUBENVIRONMENT = 5;
+  NO_SUCH_POOL = 6;
+  NO_SUCH_SANDBOX = 7;
+  NO_SUCH_CELL = 8;
+  // INVALID_ARGUMENT: cpu, memory or timeout above the sub-environment's maximum.
+  ABOVE_POLICY_MAXIMUM = 9;
+  // FAILED_PRECONDITION: no cell of this pool could ever hold the request (larger than
+  // a cell, or a timeout past a fresh cell's cap or its release's valid_until).
+  NO_CELL_CAN_HOLD = 10;
+  // UNAVAILABLE: a cell was booted but none became ready before the deadline.
+  NO_CELL_READY = 11;
+  // UNAVAILABLE: the Compute API refused to create a cell.
+  CELL_CREATE_FAILED = 12;
+  // UNAVAILABLE: the ciphertext store could not be written or read.
+  STORAGE = 13;
+  // NOT_FOUND.
+  NO_SUCH_TEMPLATE = 14;
+  // FAILED_PRECONDITION: another sandbox holds the volume's lease.
+  VOLUME_BUSY = 15;
+}
+
+message PutEnvironmentRequest {
+  // A DNS label.
+  string env_id = 1;
+  // The customer's verifier, which cells of this environment unlock against.
+  string verifier_url = 2;
+  // The environment CA certificate (PEM, public), for the control plane's Drain calls.
+  string ca_pem = 3;
+}
+
+message PutEnvironmentResponse {
+  // The environment's new token; the control plane keeps only its SHA-256.
+  string token = 1;
+}
+
+message Resources {
+  // vCPUs in halves (2 is one vCPU) and GiB.
+  uint32 cpu_halves = 1;
+  uint32 memory_gib = 2;
+}
+
+message Subenvironment {
+  string env_id = 1;
+  string subenv_id = 2;
+  // The policy bundle's sandbox limits, which the control plane checks before placing
+  // (the cell checks the signed bundle's own).
+  Resources default_size = 3;
+  Resources max_size = 4;
+  uint32 max_timeout_secs = 5;
+  // A verifier for this sub-environment's cells other than the environment's (test
+  // deployments); empty uses the environment's.
+  string verifier_url = 6;
+}
+
+message Pool {
+  string env_id = 1;
+  string subenv_id = 2;
+  // Operator: e.g. "c3-standard-8".
+  string machine_type = 3;
+  repeated string zones = 4;
+  uint32 min_warm_per_zone = 5;
+  uint32 idle_window_secs = 6;
+  // At most 48 hours.
+  uint32 cap_secs = 7;
+  // Operator: the release new cells boot (one of the control plane's releases).
+  string release_id = 8;
+  // Operator, test deployments only: extra instance metadata for test-variant cells.
+  map<string, string> test_metadata = 9;
+}
+
+message GetPoolRequest {
+  string env_id = 1;
+  string subenv_id = 2;
+}
+
+message PoolStatus {
+  Pool pool = 1;
+  repeated CellStatus cells = 2;
+}
+
+message CellStatus {
+  string cell_id = 1;
+  string zone = 2;
+  string instance_name = 3;
+  // creating, booting, ready, draining, deleting, deleted, failed.
+  string state = 4;
+  string address = 5;
+  string release_id = 6;
+  uint64 create_called_unix_ms = 7;
+  uint64 ready_unix_ms = 8;
+  uint64 deleted_unix_ms = 9;
+  uint64 cell_end_unix = 10;
+  uint32 sandbox_count = 11;
+  Resources unreserved = 12;
+  string recycle_reason = 13;
+  string forwarding_rule = 14;
+}
+
+message PlaceSandboxRequest {
+  string env_id = 1;
+  string subenv_id = 2;
+  // Zero fields take the sub-environment's defaults (timeout: 900 s).
+  Resources size = 3;
+  uint32 timeout_secs = 4;
+  // Cells that refused this request; placement avoids them.
+  repeated string avoid_cells = 5;
+}
+
+message Placement {
+  string sandbox_id = 1;
+  string cell_id = 2;
+  // host:port of the cell's forwarding rule.
+  string cell_address = 3;
+  string env_id = 4;
+  string subenv_id = 5;
+  // A cell had to be booted for this request.
+  bool cold = 6;
+  // The size and timeout placed, defaults filled in.
+  Resources size = 7;
+  uint32 timeout_secs = 8;
+}
+
+message LocateSandboxRequest {
+  string sandbox_id = 1;
+}
+
+message ReleaseSandboxRequest {
+  string sandbox_id = 1;
+}
+
+message ReleaseSandboxResponse {}
+
+message DrainCellRequest {
+  string cell_id = 1;
+}
+
+message DrainCellResponse {
+  uint32 sandboxes = 1;
+}
+
+message GetUsageRequest {
+  string env_id = 1;
+  string subenv_id = 2;
+  uint64 from_unix = 3;
+  // 0: now.
+  uint64 to_unix = 4;
+}
+
+message Usage {
+  // From each cell's create call to its deletion, clipped to the window.
+  double cell_minutes = 1;
+  repeated CellUsage cells = 2;
+}
+
+message CellUsage {
+  string cell_id = 1;
+  uint64 create_called_unix_ms = 2;
+  // 0 while the cell exists.
+  uint64 deleted_unix_ms = 3;
+  double cell_minutes = 4;
+}
+
+enum DrainState {
+  DRAIN_STATE_UNSPECIFIED = 0;
+  SERVING = 1;
+  DRAINING = 2;
+  // The cell asks to be recycled: drained, at its cap, or its lease ended.
+  RECYCLE = 3;
+}
+
+message CellReport {
+  // Who reports (instance metadata; the control plane matches it to its own record).
+  uint64 instance_id = 1;
+  string zone = 2;
+  // The fixed set.
+  bool ready = 3;
+  uint32 unreserved_cpu_halves = 4;
+  uint32 unreserved_memory_gib = 5;
+  uint32 sandbox_count = 6;
+  // Aggregate CPU of all sandboxes over the last interval, in thousandths of a vCPU,
+  // and their memory in use.
+  uint32 cpu_in_use_millis = 7;
+  uint64 memory_in_use_bytes = 8;
+  uint64 lease_expiry_unix = 9;
+  uint32 proxy_connections = 10;
+  DrainState drain_state = 11;
+  string release_id = 12;
+}
+
+message CellReportAck {}
+
+message PutCredentialRequest {
+  string env_id = 1;
+  string subenv_id = 2;
+  // The credential's name; must equal the name inside sealed.
+  string name = 3;
+  // SealCredentialResponse.sealed from the customer's verifier.
+  bytes sealed = 4;
+}
+
+message PutCredentialResponse {}
+
+message FetchCredentialsRequest {
+  // Who asks (instance metadata; the control plane matches it to its own record).
+  uint64 instance_id = 1;
+  string zone = 2;
+  repeated string names = 3;
+}
+
+message SealedCredential {
+  string name = 1;
+  bytes sealed = 2;
+}
+
+message FetchCredentialsResponse {
+  repeated SealedCredential credentials = 1;
+}
+
+message PutTemplateRequest {
+  oneof msg {
+    TemplateHeader header = 1;
+    bytes data = 2;
+  }
+}
+
+message TemplateHeader {
+  string env_id = 1;
+  string subenv_id = 2;
+  // 1-64 of a-z, 0-9, '_', '-', '.'; a later upload with the same name replaces it.
+  string name = 3;
+  // SHA-256 of the plaintext, lowercase hex.
+  string digest = 4;
+  // SealTemplateKeyResponse.sealed_key from the customer's verifier.
+  bytes sealed_key = 5;
+  // Plaintext bytes (informational, for the cell's cache accounting).
+  uint64 plaintext_bytes = 6;
+}
+
+message PutTemplateResponse {
+  TemplateInfo template = 1;
+}
+
+message GetTemplateRequest {
+  string env_id = 1;
+  string subenv_id = 2;
+  string name = 3;
+}
+
+message TemplateInfo {
+  string name = 1;
+  string digest = 2;
+  uint64 ciphertext_bytes = 3;
+  uint64 plaintext_bytes = 4;
+  // Ciphertext objects (64 MiB each, the last shorter).
+  uint32 parts = 5;
+}
+
+message GetStorageRequest {
+  uint64 instance_id = 1;
+  string zone = 2;
+}
+
+// Objects live at gs://<bucket>/<prefix>/... : templates/<digest>/{meta.json,
+// part-NNNNN} and volumes/<name>/{key.json, manifest.json, block-NNNNN-EEEEEEEEEE}.
+message Storage {
+  string bucket = 1;
+  // "<ciphertext_prefix>/<env>/<subenv>", no trailing slash.
+  string prefix = 2;
+}
+
+message AcquireVolumeRequest {
+  uint64 instance_id = 1;
+  string zone = 2;
+  string volume = 3;
+  string sandbox_id = 4;
+}
+
+message AcquireVolumeResponse {}
+
+message ReleaseVolumeRequest {
+  uint64 instance_id = 1;
+  string zone = 2;
+  string volume = 3;
+  string sandbox_id = 4;
+}
+
+message ReleaseVolumeResponse {}

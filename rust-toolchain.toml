@@ -1,0 +1,4 @@
+[toolchain]
+# Matches rustc in the pinned nixpkgs (flake.lock), so local and image builds use one compiler.
+channel = "1.95.0"
+components = ["clippy", "rustfmt"]

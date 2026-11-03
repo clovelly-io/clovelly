@@ -1,0 +1,31 @@
+[package]
+name = "verifier"
+description = "The customer's verifier: checks cell attestation, issues cell certificates and releases sub-environment DEKs"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+aws-lc-rs.workspace = true
+common = { path = "../common" }
+der.workspace = true
+prost.workspace = true
+reqwest.workspace = true
+rustls.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tonic.workspace = true
+x509-cert.workspace = true
+
+[features]
+# The service clock can be moved by CLOVELLY_TEST_CLOCK_OFFSET_SECS. Only the staging test
+# image (`verifier-image-test-clock`) is built with it; never a customer's verifier.
+test-clock = []
+
+[dev-dependencies]
+rcgen = { workspace = true }

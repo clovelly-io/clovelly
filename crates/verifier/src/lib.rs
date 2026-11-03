@@ -1,0 +1,44 @@
+//! The customer's verifier (SPEC.md, "The verifier").
+//!
+//! A cell asks for a nonce, quotes over its key and the nonce, and sends the quote and
+//! its event log to [`Verifier::unlock`]. Ten checks decide whether it is our image on
+//! Google's TDX hardware in our project; if so the verifier issues the cell a
+//! certificate under the environment CA and seals the sub-environment DEK to the
+//! cell's key.
+//!
+//! - [`checks`]: the checks and the report of one evaluation.
+//! - [`verifier`]: the evaluation itself, certificate issuance and DEK wrap.
+//! - [`sources`], [`kms`]: the injectable seams for collateral, Google's registry and
+//!   endorsements, and the key manager.
+//! - [`policy`], [`config`]: the signed release policy and the deployment settings.
+//! - [`fragments`]: per-release policy fragments, applied with a Rekor inclusion proof.
+//! - [`receipts`]: the customer's receipt log.
+//! - [`service`]: the gRPC API.
+
+pub mod checks;
+pub mod config;
+pub mod corpus;
+pub mod fragments;
+pub use common::jws;
+pub mod kms;
+pub mod nonce;
+pub mod policy;
+pub mod qvl;
+pub mod receipts;
+pub mod service;
+pub mod sources;
+pub mod verifier;
+pub mod x509;
+
+pub use checks::{Check, Failure, Outcome, Report};
+pub use kms::{CloudKms, Kms, LocalKms};
+pub use sources::{HttpSources, Sources};
+pub use verifier::{UnlockError, Unlocked, Verifier};
+
+/// Intel's SGX provisioning root CA, the production trust root for quotes.
+pub const INTEL_ROOT: &[u8] = include_bytes!("../roots/Intel_SGX_RootCA.der");
+/// Google's GCE-cc-tcb-root_1, which signs the firmware endorsement signers.
+pub const GOOGLE_ROOT: &[u8] = include_bytes!("../roots/GCE-cc-tcb-root_1.crt");
+/// The key of Sigstore's public Rekor log (`rekor.sigstore.dev/api/v1/log/publicKey`),
+/// trusted for fragment inclusion proofs unless the configuration names others.
+pub const REKOR_PUBLIC_KEY: &str = include_str!("../roots/rekor.sigstore.dev.pub");

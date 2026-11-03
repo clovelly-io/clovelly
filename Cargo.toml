@@ -1,0 +1,32 @@
+[workspace]
+members = ["crates/cell-agent", "crates/common", "crates/egress-proxy", "crates/measure", "crates/rebuild", "crates/receipt-tool", "crates/verifier"]
+exclude = ["tools/protogen"]
+resolver = "3"
+
+[workspace.package]
+version = "0.3.0-rc.1"
+license = "FSL-1.1-ALv2"
+edition = "2024"
+rust-version = "1.95"
+publish = false
+
+# One version of each dependency for every crate. SPEC.md names the crates; the few
+# that are not named are each recorded in the decision log.
+[workspace.dependencies]
+anyhow = "1"
+aws-lc-rs = { version = "1", default-features = false, features = ["aws-lc-sys"] }
+der = { version = "0.8", features = ["alloc", "derive", "oid"] }
+hpke = { version = "0.15.0", default-features = false, features = ["alloc", "getrandom", "nistp", "aes"] }
+prost = "0.14"
+prost-types = "0.14"
+rcgen = { version = "0.14", default-features = false, features = ["aws_lc_rs"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-native-roots-no-provider", "json"] }
+rustls = { version = "0.23", default-features = false, features = ["aws_lc_rs", "std", "tls12"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["raw_value"] }
+thiserror = "2"
+time = "0.3"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time", "sync", "process", "io-util", "fs", "signal"] }
+tonic = { version = "0.14", default-features = false, features = ["codegen", "router", "transport", "tls-aws-lc"] }
+tonic-prost = "0.14"
+x509-cert = { version = "0.3.0", default-features = false, features = ["std"] }

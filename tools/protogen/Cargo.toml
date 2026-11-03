@@ -1,0 +1,16 @@
+# Regenerates crates/common/src/proto/*.rs from proto/. Kept out of the main workspace:
+# prost-build is a code generator, not a dependency of anything we ship, and its own
+# dependencies are outside the licence allowlist (DECISIONS.md).
+#
+#   cargo run --manifest-path tools/protogen/Cargo.toml
+[package]
+name = "protogen"
+version = "0.0.0"
+edition = "2024"
+license = "FSL-1.1-ALv2"
+publish = false
+
+[workspace]
+
+[dependencies]
+tonic-prost-build = "0.14"

@@ -1,0 +1,18 @@
+# `cargo deny check licenses`: the licence rule in SPEC.md ("Decided"). Our own crates are
+# unpublished and not checked; every dependency must be under one of these licences.
+[licenses]
+allow = [
+    "MIT",
+    "MIT-0",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+    "CC0-1.0",
+]
+confidence-threshold = 0.9
+
+[licenses.private]
+ignore = true

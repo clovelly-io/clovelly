@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "clovelly"
+version = "0.4.0"
+description = "Python client for the confidential agent runtime: sandboxes on attested TDX cells"
+readme = "README.md"
+requires-python = ">=3.9"
+license = "Apache-2.0"
+# Exact pins, every one under the SPEC.md licence rule (check_licences.py). grpcio 1.74.0
+# is the newest grpcio without a typing-extensions dependency (PSF-2.0, not on the
+# allowlist); see README.md "Versions". The three move together: the generated code
+# needs grpcio >= the grpcio-tools that wrote it, and grpcio-health-checking pins protobuf.
+# cryptography (AES-256-GCM for templates) is 45.0.7 for the same reason: from 46.0.0 it
+# needs typing-extensions on Python < 3.11. Its cffi and cffi's pycparser are pinned
+# too, at the newest releases that still install on Python 3.9.
+dependencies = [
+    "grpcio==1.74.0",
+    "grpcio-health-checking==1.74.0",
+    "protobuf==6.33.6",
+    "cryptography==45.0.7",
+    "cffi==2.0.0; platform_python_implementation != 'PyPy'",
+    "pycparser==2.23; implementation_name != 'PyPy'",
+]
+
+[project.optional-dependencies]
+# Only for gen.sh: regenerating src/clovelly/{cell,control}/v1 from ../../proto.
+dev = ["grpcio-tools==1.74.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+clovelly = ["py.typed", "**/*.pyi"]

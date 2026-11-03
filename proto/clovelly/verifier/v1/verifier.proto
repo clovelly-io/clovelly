@@ -1,0 +1,212 @@
+// The verifier API. The customer runs the verifier; cells call GetNonce and Unlock at
+// boot, GetPolicy every 60 seconds and AppendReceipt every 10 seconds; SDKs call GetCA
+// to pin the environment CA (phase 2), SealCredential to encrypt a credential under the
+// sub-environment DEK (phase 3), SealTemplateKey for a template's key, and ListReceipts
+// and GetEgressLog to read the customer's receipt log (phase 4).
+//
+// Failures: Unlock answers PERMISSION_DENIED with the message "check N", N being the
+// number of the first unlock check that failed (SPEC.md, "The verifier"), and nothing
+// else. Transient trouble (a collateral source or KMS unreachable) is UNAVAILABLE; the
+// cell retries until its unlock deadline.
+syntax = "proto3";
+
+package clovelly.verifier.v1;
+
+service Verifier {
+  // A single-use nonce for one unlock attempt, valid for the policy's nonce TTL.
+  rpc GetNonce(GetNonceRequest) returns (GetNonceResponse);
+  // Checks a cell's evidence and, if every check passes, issues its certificate and
+  // wraps the sub-environment DEK to the cell's key.
+  rpc Unlock(UnlockRequest) returns (UnlockResponse);
+  // The environment CA certificate (DER).
+  rpc GetCA(GetCARequest) returns (GetCAResponse);
+  // The sub-environment's current policy bundle and its detached JWS. Cells poll it
+  // every 60 seconds and apply a new bundle to new sandboxes only. Not secret.
+  rpc GetPolicy(GetPolicyRequest) returns (GetPolicyResponse);
+  // The customer's SDK only: seals a credential under the sub-environment DEK, bound to
+  // its name, adapter type and destination, for upload through the control plane. The
+  // call carries "authorization: Bearer <token>", the SDK token whose SHA-256 is in the
+  // verifier's configuration; without it the answer is UNAUTHENTICATED.
+  rpc SealCredential(SealCredentialRequest) returns (SealCredentialResponse);
+  // The customer's SDK only (SDK token, as SealCredential): a fresh 256-bit key for one
+  // template, and the same key sealed under the sub-environment DEK and bound to the
+  // template's digest. The SDK encrypts the template with the key and uploads the
+  // ciphertext and the sealed key; only a cell of the sub-environment can open it.
+  rpc SealTemplateKey(SealTemplateKeyRequest) returns (SealTemplateKeyResponse);
+  // Cells: appends signed receipts to the customer's receipt log, which keeps the
+  // latest record per sandbox. Each receipt must verify (its signature under its cell
+  // certificate, which must chain to this environment's CA); a refused record is
+  // INVALID_ARGUMENT and nothing in the call is kept.
+  rpc AppendReceipt(AppendReceiptRequest) returns (AppendReceiptResponse);
+  // The customer's SDK only (SDK token): the log's records.
+  rpc ListReceipts(ListReceiptsRequest) returns (ListReceiptsResponse);
+  // The customer's SDK only (SDK token): the egress log a sandbox's final receipt
+  // carried, whose SHA-256 is the receipt's egress_log_hash.
+  rpc GetEgressLog(GetEgressLogRequest) returns (GetEgressLogResponse);
+}
+
+message GetNonceRequest {
+  string env_id = 1;
+}
+
+message GetNonceResponse {
+  // 32 bytes.
+  bytes nonce = 1;
+}
+
+// What a cell sends to unlock. Only the quote and the CCEL are evidence; the other
+// fields are claims the checks bind to the quote (REPORTDATA, MR_OWNER, RTMRs).
+message Evidence {
+  // The raw TDX quote from configfs-tsm.
+  bytes quote = 1;
+  // The ACPI CCEL table (/sys/firmware/acpi/tables/CCEL).
+  bytes ccel_table = 2;
+  // The CC event log (/sys/firmware/acpi/tables/data/CCEL).
+  bytes ccel_log = 3;
+  string env_id = 4;
+  string subenv_id = 5;
+  // The release the cell's image says it is (/clovelly/release).
+  string release_id = 6;
+  // DER SubjectPublicKeyInfo of the cell's P-256 key.
+  bytes spki = 7;
+  // The nonce from GetNonce.
+  bytes nonce = 8;
+  // GCE instance id and zone, from instance metadata; MR_OWNER binds them.
+  uint64 instance_id = 9;
+  string zone = 10;
+}
+
+message UnlockRequest {
+  Evidence evidence = 1;
+}
+
+message UnlockResponse {
+  // DER certificate for the cell key, issued by the environment CA, SAN
+  // <subenv>.<env>.cells.clovelly.internal.
+  bytes cell_cert = 1;
+  // The sub-environment DEK, HPKE-sealed to the cell key: encapsulated key (65 bytes)
+  // followed by the AES-256-GCM ciphertext and tag.
+  bytes wrapped_env_dek = 2;
+  // The sub-environment's policy bundle (JSON) and its detached JWS (ES256, signed by
+  // the customer's policy key).
+  bytes policy_bundle = 3;
+  string policy_sig = 4;
+  // The release's valid_until (Unix seconds) from the release policy: the cell refuses
+  // a sandbox whose timeout would reach it (SPEC.md "Cell cap and sandbox timeouts").
+  uint64 release_valid_until = 5;
+  // The customer's policy public key (PEM): the cell verifies every policy bundle with
+  // it, and keeps the one from its first unlock for its life.
+  string policy_key = 6;
+}
+
+message GetCARequest {
+  string env_id = 1;
+}
+
+message GetCAResponse {
+  bytes ca_cert = 1;
+}
+
+message GetPolicyRequest {
+  string env_id = 1;
+  string subenv_id = 2;
+}
+
+message GetPolicyResponse {
+  bytes policy_bundle = 1;
+  string policy_sig = 2;
+}
+
+message SealCredentialRequest {
+  string env_id = 1;
+  string subenv_id = 2;
+  // 1-64 of a-z, 0-9, '_', '-'; sandboxes carry it as clovelly://cred/<name>.
+  string name = 3;
+  // "bearer", "basic" or "query": the adapter the policy uses for the destination.
+  string adapter = 4;
+  // The one host the credential may be sent to.
+  string destination = 5;
+  // The secret, at most 16 KiB.
+  bytes secret = 6;
+}
+
+message SealCredentialResponse {
+  // The sealed credential (JSON: the binding in the clear, the secret as AES-256-GCM
+  // ciphertext under a key derived from the sub-environment DEK).
+  bytes sealed = 1;
+}
+
+message SealTemplateKeyRequest {
+  string env_id = 1;
+  string subenv_id = 2;
+  // SHA-256 of the template plaintext, lowercase hex.
+  string digest = 3;
+}
+
+message SealTemplateKeyResponse {
+  // The template key (32 bytes). The SDK encrypts with it and then forgets it.
+  bytes key = 1;
+  // The key sealed under the sub-environment DEK, bound to the environment,
+  // sub-environment and digest (JSON, common::template::SealedKey).
+  bytes sealed_key = 2;
+}
+
+// One record for the receipt log.
+message LogRecord {
+  // The receipt JSON in JCS canonical form (the signed bytes) and its signature
+  // (ECDSA P-256 SHA-256, r || s).
+  bytes receipt = 1;
+  bytes signature = 2;
+  // The signing cell's certificate (DER).
+  bytes cell_cert = 3;
+  // The sandbox has ended and this is its receipt; interim records (the 10-second
+  // last-will flush, exit kind cell_lost) are false.
+  bool final = 4;
+  // Final records only: the sandbox's egress log, one JSON line each, whose SHA-256
+  // (each line followed by a newline) is the receipt's egress_log_hash.
+  repeated string egress_log = 5;
+}
+
+message AppendReceiptRequest {
+  repeated LogRecord records = 1;
+}
+
+message AppendReceiptResponse {}
+
+message ListReceiptsRequest {
+  string env_id = 1;
+  // Empty: every sub-environment.
+  string subenv_id = 2;
+  // Empty: every sandbox.
+  repeated string sandbox_ids = 3;
+}
+
+message LoggedReceipt {
+  bytes receipt = 1;
+  bytes signature = 2;
+  bytes cell_cert = 3;
+  // Final: appended as final, or an interim last-will record that no record has
+  // superseded for 30 seconds (its cell stopped flushing: cell_lost).
+  bool final = 4;
+  // When the log received it (Unix milliseconds).
+  uint64 received_unix_ms = 5;
+  // Every record the log received for this sandbox, superseded ones included, and how
+  // many of them were appended as final (exactly one for a sandbox that ended).
+  uint32 records = 6;
+  uint32 finals = 7;
+}
+
+message ListReceiptsResponse {
+  repeated LoggedReceipt receipts = 1;
+}
+
+message GetEgressLogRequest {
+  string env_id = 1;
+  string sandbox_id = 2;
+}
+
+message GetEgressLogResponse {
+  repeated string lines = 1;
+  // SHA-256 over every line followed by a newline, lowercase hex.
+  string sha256 = 2;
+}
