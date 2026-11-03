@@ -36,12 +36,12 @@ a non-commercial licence.
 | brotli | 1.2.0 | MIT |
 | busybox | 1.37.0 | GPL-2.0-only |
 | bzip2 | 1.0.8 | bzip2-1.0.6 |
-| cell-agent | 0.3.0-rc.2 | FSL-1.1-ALv2 |
+| cell-agent | 0.3.0-rc.3 | FSL-1.1-ALv2 |
 | chrony | 4.8 | GPL-2.0-only |
 | cryptsetup | 2.8.6 | GPL-2.0-or-later |
 | curl | 8.22.0 | curl |
 | db | 5.3.28 | Sleepycat |
-| egress-proxy | 0.3.0-rc.2 | FSL-1.1-ALv2 |
+| egress-proxy | 0.3.0-rc.3 | FSL-1.1-ALv2 |
 | elfutils | 0.194 | GPL-2.0-only OR LGPL-3.0-or-later OR GPL-3.0-or-later |
 | expat | 2.8.5 | MIT |
 | gcc | 15.3.0 | GPL-3.0-or-later |
