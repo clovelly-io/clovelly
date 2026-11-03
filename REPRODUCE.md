@@ -12,8 +12,9 @@ ours but this repository and our public release key, which is in it
   x86_64), or Linux x86_64 with Nix 2.18 or later with flakes. About 60 GB of free disk
   and an internet connection (sources and cached packages come from GitHub, cache.nixos.org
   and upstream mirrors, each pinned by hash).
-- git, and Rust (rustup reads `rust-toolchain.toml`) for the comparison tool, or jq if
-  you would rather compare by hand.
+- git, and Rust (rustup reads `rust-toolchain.toml`) with a C compiler (`build-essential` on
+  Debian or Ubuntu; the crypto library builds C) for the comparison tool, or jq if you
+  would rather compare by hand.
 
 The build takes about 10 minutes on 44 cores and one to two hours on 4.
 

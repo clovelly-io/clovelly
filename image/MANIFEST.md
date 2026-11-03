@@ -31,17 +31,17 @@ a non-commercial licence.
 | linux (in the UKI) | 6.18.57 | GPL-2.0-only |
 | systemd (in the UKI) | 260.5 | BSD-2-Clause OR BSD-3-Clause OR CC0-1.0 OR LGPL-2.1-or-later OR LGPL-2.0-or-later OR MIT OR MIT-0 OR OFL-1.1 OR publicDomain |
 | attest-tools |  | Apache-2.0 |
-| base-bundle |  | Apache-2.0 |
+| base-bundle |  | FSL-1.1-ALv2 |
 | bash | 5.3p9 | GPL-3.0-or-later |
 | brotli | 1.2.0 | MIT |
 | busybox | 1.37.0 | GPL-2.0-only |
 | bzip2 | 1.0.8 | bzip2-1.0.6 |
-| cell-agent | 0.2.0 | Apache-2.0 |
+| cell-agent | 0.3.0-rc.1 | FSL-1.1-ALv2 |
 | chrony | 4.8 | GPL-2.0-only |
 | cryptsetup | 2.8.6 | GPL-2.0-or-later |
 | curl | 8.22.0 | curl |
 | db | 5.3.28 | Sleepycat |
-| egress-proxy | 0.2.0 | Apache-2.0 |
+| egress-proxy | 0.3.0-rc.1 | FSL-1.1-ALv2 |
 | elfutils | 0.194 | GPL-2.0-only OR LGPL-3.0-or-later OR GPL-3.0-or-later |
 | expat | 2.8.5 | MIT |
 | gcc | 15.3.0 | GPL-3.0-or-later |
