@@ -252,7 +252,7 @@ dependencies = [
 
 [[package]]
 name = "cell-agent"
-version = "0.3.0-rc.1"
+version = "0.3.0-rc.2"
 dependencies = [
  "anyhow",
  "aws-lc-rs",
@@ -318,7 +318,7 @@ checksum = "0c9ea0ac24bc397ab3c98583a3c9ba74fa56b09a4449bbe172b9b1ddb016027a"
 
 [[package]]
 name = "common"
-version = "0.3.0-rc.1"
+version = "0.3.0-rc.2"
 dependencies = [
  "aws-lc-rs",
  "der",
@@ -504,7 +504,7 @@ checksum = "92773504d58c093f6de2459af4af33faa518c13451eb8f2b5698ed3d36e7c813"
 
 [[package]]
 name = "egress-proxy"
-version = "0.3.0-rc.1"
+version = "0.3.0-rc.2"
 dependencies = [
  "aws-lc-rs",
  "bytes",
@@ -1107,7 +1107,7 @@ checksum = "47e1ffaa40ddd1f3ed91f717a33c8c0ee23fff369e3aa8772b9605cc1d22f4c3"
 
 [[package]]
 name = "measure"
-version = "0.3.0-rc.1"
+version = "0.3.0-rc.2"
 dependencies = [
  "anyhow",
  "aws-lc-rs",
@@ -1442,7 +1442,7 @@ dependencies = [
 
 [[package]]
 name = "rebuild"
-version = "0.3.0-rc.1"
+version = "0.3.0-rc.2"
 dependencies = [
  "anyhow",
  "common",
@@ -1453,7 +1453,7 @@ dependencies = [
 
 [[package]]
 name = "receipt-tool"
-version = "0.3.0-rc.1"
+version = "0.3.0-rc.2"
 dependencies = [
  "anyhow",
  "common",
@@ -2146,7 +2146,7 @@ checksum = "b6c140620e7ffbb22c2dee59cafe6084a59b5ffc27a8859a5f0d494b5d52b6be"
 
 [[package]]
 name = "verifier"
-version = "0.3.0-rc.1"
+version = "0.3.0-rc.2"
 dependencies = [
  "anyhow",
  "aws-lc-rs",
