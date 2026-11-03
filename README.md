@@ -1,7 +1,9 @@
 # Clovelly
 
-Clovelly, by Altquid, Inc., runs sandboxes for AI agents where the provider cannot see
-inside and the customer can prove it. Sandboxes run under gVisor inside Intel TDX
+Clovelly, by Altquid, Inc., runs general-purpose code sandboxes where the provider
+cannot see inside and the customer can prove it: for AI agents, CI, data jobs or
+anything else you would rather not run on a machine someone else can read. Sandboxes
+run under gVisor inside Intel TDX
 confidential VMs ("cells") on Google Cloud. Each customer runs a verifier in their own
 project that checks every cell's attestation before releasing keys from the customer's
 KMS, and the SDKs refuse to talk to a cell the verifier has not vouched for.
