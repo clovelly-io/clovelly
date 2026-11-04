@@ -47,6 +47,25 @@ service Control {
   rpc PutTemplate(stream PutTemplateRequest) returns (PutTemplateResponse);
   // The digest of a sub-environment's template by name.
   rpc GetTemplate(GetTemplateRequest) returns (TemplateInfo);
+  // Deletes a template's name and, if no other name uses it, its ciphertext. Ciphertext
+  // is kept until its customer deletes it or leaves (docs/retention.md).
+  rpc DeleteTemplate(GetTemplateRequest) returns (DeletedObjects);
+  // Deletes a volume's ciphertext; refused (VOLUME_BUSY) while a sandbox holds its lease.
+  rpc DeleteVolume(DeleteVolumeRequest) returns (DeletedObjects);
+  // Operator: sets an environment's quotas.
+  rpc PutQuota(Quota) returns (Quota);
+  // An environment's quotas and what it uses now.
+  rpc GetQuota(GetQuotaRequest) returns (QuotaStatus);
+  // Operator: a planned drain of one zone. No new cell or placement goes there from now
+  // on; replacements boot in the pools' other zones, then the zone's cells drain.
+  rpc DrainZone(DrainZoneRequest) returns (DrainZoneResponse);
+  // Operator: puts a drained or lost zone back in service.
+  rpc RestoreZone(DrainZoneRequest) returns (DrainZoneResponse);
+  // One calendar month's billing for an environment, per cell and per sub-environment.
+  rpc ExportBilling(ExportBillingRequest) returns (BillingExport);
+  // Operator: a customer leaves. Refuses new work, recycles its cells, deletes all of its
+  // ciphertext and every record of it here. Returns what went, for the deletion receipt.
+  rpc OffboardEnvironment(OffboardRequest) returns (OffboardResponse);
 }
 
 service CellChannel {
@@ -91,6 +110,9 @@ enum ErrorReason {
   NO_SUCH_TEMPLATE = 14;
   // FAILED_PRECONDITION: another sandbox holds the volume's lease.
   VOLUME_BUSY = 15;
+  // RESOURCE_EXHAUSTED: the environment is at a quota (cells, sandboxes or volume
+  // bytes). Refused at once, never queued; the message names the quota.
+  QUOTA_EXCEEDED = 16;
 }
 
 message PutEnvironmentRequest {
@@ -99,7 +121,11 @@ message PutEnvironmentRequest {
   // The customer's verifier, which cells of this environment unlock against.
   string verifier_url = 2;
   // The environment CA certificate (PEM, public), for the control plane's Drain calls.
+  // Several certificates while the CA rotates (docs/key-rotation.md).
   string ca_pem = 3;
+  // Updates an existing environment and leaves its token as it is; the response's token
+  // is then empty.
+  bool keep_token = 4;
 }
 
 message PutEnvironmentResponse {
@@ -359,3 +385,102 @@ message ReleaseVolumeRequest {
 }
 
 message ReleaseVolumeResponse {}
+
+message DeleteVolumeRequest {
+  string env_id = 1;
+  string subenv_id = 2;
+  string name = 3;
+}
+
+message DeletedObjects {
+  uint64 objects = 1;
+  uint64 bytes = 2;
+}
+
+// Zero in a limit means no limit.
+message Quota {
+  string env_id = 1;
+  // Live cells of the environment, not counting cells draining or being deleted.
+  uint32 max_cells = 2;
+  // Sandboxes placed and not yet ended.
+  uint32 max_sandboxes = 3;
+  // Volume ciphertext in the store, checked when a volume is mounted.
+  uint64 max_volume_bytes = 4;
+}
+
+message GetQuotaRequest {
+  string env_id = 1;
+}
+
+message QuotaStatus {
+  Quota quota = 1;
+  uint32 cells = 2;
+  uint32 sandboxes = 3;
+  uint64 volume_bytes = 4;
+}
+
+message DrainZoneRequest {
+  string zone = 1;
+}
+
+message DrainZoneResponse {
+  // The zone's cells that will drain, and the replacements started elsewhere.
+  uint32 cells = 1;
+  uint32 replacements = 2;
+}
+
+message ExportBillingRequest {
+  string env_id = 1;
+  // "YYYY-MM", UTC.
+  string month = 2;
+}
+
+message BillingExport {
+  string env_id = 1;
+  string month = 2;
+  // Every cell billed in the month, clipped to it.
+  repeated BilledCell cells = 3;
+  repeated BilledSubenv subenvs = 4;
+  uint64 billed_ms = 5;
+  // The sum of subenvs' cents.
+  uint64 total_cents = 6;
+}
+
+message BilledCell {
+  string subenv_id = 1;
+  string cell_id = 2;
+  string machine_type = 3;
+  string zone = 4;
+  uint64 create_called_unix_ms = 5;
+  // 0: the cell still exists; it is billed to the end of the month or to now.
+  uint64 deleted_unix_ms = 6;
+  uint64 billed_ms = 7;
+}
+
+message BilledSubenv {
+  string subenv_id = 1;
+  uint64 billed_ms = 2;
+  // billed_ms at the control plane's price per cell-hour, rounded half up once per
+  // sub-environment.
+  uint64 cents = 3;
+}
+
+message OffboardRequest {
+  string env_id = 1;
+}
+
+// What was deleted; the operator signs it as the deletion receipt.
+message OffboardResponse {
+  string env_id = 1;
+  uint64 started_unix_ms = 2;
+  uint64 finished_unix_ms = 3;
+  uint32 cells_deleted = 4;
+  uint64 objects_deleted = 5;
+  uint64 bytes_deleted = 6;
+  // SHA-256 (hex) over the deleted object names, sorted, each followed by a newline.
+  string object_names_sha256 = 7;
+  // The ciphertext prefix, listed after the deletion: the count must be zero.
+  uint64 objects_remaining = 8;
+  // Rows deleted from the control plane's database, by table.
+  map<string, uint64> rows_deleted = 9;
+}

@@ -94,6 +94,46 @@ class ControlStub(object):
                 request_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.GetTemplateRequest.SerializeToString,
                 response_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.TemplateInfo.FromString,
                 _registered_method=True)
+        self.DeleteTemplate = channel.unary_unary(
+                '/clovelly.control.v1.Control/DeleteTemplate',
+                request_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.GetTemplateRequest.SerializeToString,
+                response_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.DeletedObjects.FromString,
+                _registered_method=True)
+        self.DeleteVolume = channel.unary_unary(
+                '/clovelly.control.v1.Control/DeleteVolume',
+                request_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.DeleteVolumeRequest.SerializeToString,
+                response_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.DeletedObjects.FromString,
+                _registered_method=True)
+        self.PutQuota = channel.unary_unary(
+                '/clovelly.control.v1.Control/PutQuota',
+                request_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.Quota.SerializeToString,
+                response_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.Quota.FromString,
+                _registered_method=True)
+        self.GetQuota = channel.unary_unary(
+                '/clovelly.control.v1.Control/GetQuota',
+                request_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.GetQuotaRequest.SerializeToString,
+                response_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.QuotaStatus.FromString,
+                _registered_method=True)
+        self.DrainZone = channel.unary_unary(
+                '/clovelly.control.v1.Control/DrainZone',
+                request_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.DrainZoneRequest.SerializeToString,
+                response_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.DrainZoneResponse.FromString,
+                _registered_method=True)
+        self.RestoreZone = channel.unary_unary(
+                '/clovelly.control.v1.Control/RestoreZone',
+                request_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.DrainZoneRequest.SerializeToString,
+                response_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.DrainZoneResponse.FromString,
+                _registered_method=True)
+        self.ExportBilling = channel.unary_unary(
+                '/clovelly.control.v1.Control/ExportBilling',
+                request_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.ExportBillingRequest.SerializeToString,
+                response_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.BillingExport.FromString,
+                _registered_method=True)
+        self.OffboardEnvironment = channel.unary_unary(
+                '/clovelly.control.v1.Control/OffboardEnvironment',
+                request_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.OffboardRequest.SerializeToString,
+                response_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.OffboardResponse.FromString,
+                _registered_method=True)
 
 
 class ControlServicer(object):
@@ -188,6 +228,65 @@ class ControlServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def DeleteTemplate(self, request, context):
+        """Deletes a template's name and, if no other name uses it, its ciphertext. Ciphertext
+        is kept until its customer deletes it or leaves (docs/retention.md).
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def DeleteVolume(self, request, context):
+        """Deletes a volume's ciphertext; refused (VOLUME_BUSY) while a sandbox holds its lease.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def PutQuota(self, request, context):
+        """Operator: sets an environment's quotas.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetQuota(self, request, context):
+        """An environment's quotas and what it uses now.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def DrainZone(self, request, context):
+        """Operator: a planned drain of one zone. No new cell or placement goes there from now
+        on; replacements boot in the pools' other zones, then the zone's cells drain.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def RestoreZone(self, request, context):
+        """Operator: puts a drained or lost zone back in service.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ExportBilling(self, request, context):
+        """One calendar month's billing for an environment, per cell and per sub-environment.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def OffboardEnvironment(self, request, context):
+        """Operator: a customer leaves. Refuses new work, recycles its cells, deletes all of its
+        ciphertext and every record of it here. Returns what went, for the deletion receipt.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_ControlServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -250,6 +349,46 @@ def add_ControlServicer_to_server(servicer, server):
                     servicer.GetTemplate,
                     request_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.GetTemplateRequest.FromString,
                     response_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.TemplateInfo.SerializeToString,
+            ),
+            'DeleteTemplate': grpc.unary_unary_rpc_method_handler(
+                    servicer.DeleteTemplate,
+                    request_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.GetTemplateRequest.FromString,
+                    response_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.DeletedObjects.SerializeToString,
+            ),
+            'DeleteVolume': grpc.unary_unary_rpc_method_handler(
+                    servicer.DeleteVolume,
+                    request_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.DeleteVolumeRequest.FromString,
+                    response_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.DeletedObjects.SerializeToString,
+            ),
+            'PutQuota': grpc.unary_unary_rpc_method_handler(
+                    servicer.PutQuota,
+                    request_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.Quota.FromString,
+                    response_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.Quota.SerializeToString,
+            ),
+            'GetQuota': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetQuota,
+                    request_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.GetQuotaRequest.FromString,
+                    response_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.QuotaStatus.SerializeToString,
+            ),
+            'DrainZone': grpc.unary_unary_rpc_method_handler(
+                    servicer.DrainZone,
+                    request_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.DrainZoneRequest.FromString,
+                    response_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.DrainZoneResponse.SerializeToString,
+            ),
+            'RestoreZone': grpc.unary_unary_rpc_method_handler(
+                    servicer.RestoreZone,
+                    request_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.DrainZoneRequest.FromString,
+                    response_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.DrainZoneResponse.SerializeToString,
+            ),
+            'ExportBilling': grpc.unary_unary_rpc_method_handler(
+                    servicer.ExportBilling,
+                    request_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.ExportBillingRequest.FromString,
+                    response_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.BillingExport.SerializeToString,
+            ),
+            'OffboardEnvironment': grpc.unary_unary_rpc_method_handler(
+                    servicer.OffboardEnvironment,
+                    request_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.OffboardRequest.FromString,
+                    response_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.OffboardResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -576,6 +715,222 @@ class Control(object):
             '/clovelly.control.v1.Control/GetTemplate',
             clovelly_dot_control_dot_v1_dot_control__pb2.GetTemplateRequest.SerializeToString,
             clovelly_dot_control_dot_v1_dot_control__pb2.TemplateInfo.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def DeleteTemplate(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/clovelly.control.v1.Control/DeleteTemplate',
+            clovelly_dot_control_dot_v1_dot_control__pb2.GetTemplateRequest.SerializeToString,
+            clovelly_dot_control_dot_v1_dot_control__pb2.DeletedObjects.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def DeleteVolume(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/clovelly.control.v1.Control/DeleteVolume',
+            clovelly_dot_control_dot_v1_dot_control__pb2.DeleteVolumeRequest.SerializeToString,
+            clovelly_dot_control_dot_v1_dot_control__pb2.DeletedObjects.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def PutQuota(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/clovelly.control.v1.Control/PutQuota',
+            clovelly_dot_control_dot_v1_dot_control__pb2.Quota.SerializeToString,
+            clovelly_dot_control_dot_v1_dot_control__pb2.Quota.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetQuota(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/clovelly.control.v1.Control/GetQuota',
+            clovelly_dot_control_dot_v1_dot_control__pb2.GetQuotaRequest.SerializeToString,
+            clovelly_dot_control_dot_v1_dot_control__pb2.QuotaStatus.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def DrainZone(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/clovelly.control.v1.Control/DrainZone',
+            clovelly_dot_control_dot_v1_dot_control__pb2.DrainZoneRequest.SerializeToString,
+            clovelly_dot_control_dot_v1_dot_control__pb2.DrainZoneResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def RestoreZone(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/clovelly.control.v1.Control/RestoreZone',
+            clovelly_dot_control_dot_v1_dot_control__pb2.DrainZoneRequest.SerializeToString,
+            clovelly_dot_control_dot_v1_dot_control__pb2.DrainZoneResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ExportBilling(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/clovelly.control.v1.Control/ExportBilling',
+            clovelly_dot_control_dot_v1_dot_control__pb2.ExportBillingRequest.SerializeToString,
+            clovelly_dot_control_dot_v1_dot_control__pb2.BillingExport.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def OffboardEnvironment(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/clovelly.control.v1.Control/OffboardEnvironment',
+            clovelly_dot_control_dot_v1_dot_control__pb2.OffboardRequest.SerializeToString,
+            clovelly_dot_control_dot_v1_dot_control__pb2.OffboardResponse.FromString,
             options,
             channel_credentials,
             insecure,

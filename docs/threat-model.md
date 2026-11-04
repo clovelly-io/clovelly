@@ -25,8 +25,10 @@ verifier. Physical attacks on the CPU (TEE.fail, DDRop) are out of scope.
   cell's key, never stored by the verifier.
 - **The environment CA key.** In KMS; signs one certificate per unlocked cell.
 - **The policy key.** In KMS; signs each sub-environment's policy bundle. Its public key
-  goes to each cell at unlock, and the cell verifies every bundle against the key from
-  its first unlock.
+  goes to each cell at every unlock and renewal, and the cell verifies every bundle against
+  the keys its latest lease named, one normally and two while the key rotates
+  ([key-rotation.md](key-rotation.md)). The same verifier names them that issued the cell's
+  certificate, so a key change trusts nothing the first unlock did not.
 - **Credentials.** The customer's SDK sends a credential's secret to the verifier
   (`SealCredential`), which seals it under a key derived from the sub-environment DEK,
   bound to its name, adapter type and destination, and returns only ciphertext. The

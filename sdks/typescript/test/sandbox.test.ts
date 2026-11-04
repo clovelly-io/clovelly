@@ -7,6 +7,7 @@ import { after, before, beforeEach, describe, it } from "node:test";
 import * as grpc from "@grpc/grpc-js";
 import {
   AbovePolicyMaximum,
+  QuotaExceeded,
   CapacityError,
   CellVerificationError,
   Environment,
@@ -138,6 +139,15 @@ describe("sandboxes", () => {
       assert.ok(error instanceof AbovePolicyMaximum, String(error));
       assert.equal(error.reason, "ABOVE_POLICY_MAXIMUM");
       assert.equal(error.code, grpc.status.INVALID_ARGUMENT);
+      return true;
+    });
+  });
+
+  it("raises QUOTA_EXCEEDED as QuotaExceeded and does not place again", async () => {
+    control.refusePlace = refusal("QUOTA_EXCEEDED", grpc.status.RESOURCE_EXHAUSTED);
+    await assert.rejects(environment().sandbox("a"), (error: unknown) => {
+      assert.ok(error instanceof QuotaExceeded, String(error));
+      assert.equal(error.reason, "QUOTA_EXCEEDED");
       return true;
     });
   });

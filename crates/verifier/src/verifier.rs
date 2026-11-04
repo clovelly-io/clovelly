@@ -119,14 +119,16 @@ pub struct Verifier<S, K> {
     config: Config,
     /// The signed release policy the verifier started with.
     base: ReleasePolicy,
-    /// `base` with the releases of every applied fragment: what checks 6, 9 and 10
-    /// read. Swapped whole when fragments are loaded.
+    /// `base` with the releases of every fragment applied since start-up: what checks 6,
+    /// 9 and 10 read. Swapped whole when fragments are loaded.
     policy: RwLock<Arc<ReleasePolicy>>,
     release_keys: Vec<TrustedKey>,
     rekor_keys: Vec<TrustedKey>,
     trust_root: Vec<u8>,
     google_root: Vec<u8>,
     ca: CaCert,
+    /// CA certificates `ca` replaced, kept during a rotation (`Ca::previous_cert_pem`).
+    previous_cas: Vec<CaCert>,
     sources: S,
     kms: K,
     nonces: Nonces,
@@ -151,6 +153,12 @@ impl<S: Sources, K: Kms> Verifier<S, K> {
         };
         Ok(Self {
             ca: CaCert::from_pem(&config.ca.cert_pem)?,
+            previous_cas: config
+                .ca
+                .previous_cert_pem
+                .iter()
+                .map(|p| CaCert::from_pem(p))
+                .collect::<Result<_, _>>()?,
             release_keys: keys("release_keys", &config.release_keys)?,
             rekor_keys: keys("rekor_keys", &config.rekor_keys)?,
             config,
@@ -173,16 +181,17 @@ impl<S: Sources, K: Kms> Verifier<S, K> {
         Arc::clone(&self.policy.read().unwrap_or_else(|p| p.into_inner()))
     }
 
-    /// Verifies every bundle and puts the signed policy plus the releases of those that
-    /// pass in force, replacing what earlier loads applied. Returns each bundle's
-    /// outcome, in order, for the log.
+    /// Verifies every bundle and adds the releases of those that pass to the policy in
+    /// force. Nothing a load applied is forgotten until restart, so a stale, partial or
+    /// empty index cannot drop a release or raise a lowered `valid_until`. Returns each
+    /// bundle's outcome, in order, for the log.
     pub fn load_fragments(&self, bundles: &[FragmentBundle]) -> Vec<Result<ReleaseId, FragmentError>> {
         let results: Vec<_> = bundles
             .iter()
             .map(|b| fragments::verify(b, &self.release_keys, &self.rekor_keys))
             .collect();
         let applied: Vec<_> = results.iter().filter_map(|r| r.as_ref().ok()).cloned().collect();
-        let next = Arc::new(self.base.with_fragments(&applied));
+        let next = Arc::new(self.policy().with_fragments(&applied));
         *self.policy.write().unwrap_or_else(|p| p.into_inner()) = next;
         results.into_iter().map(|r| r.map(|a| a.release.id)).collect()
     }
@@ -212,6 +221,12 @@ impl<S: Sources, K: Kms> Verifier<S, K> {
     /// The environment CA certificate (DER).
     pub fn ca_der(&self) -> &[u8] {
         &self.ca.der
+    }
+
+    /// The CA certificates a cell certificate may chain to (DER): the current one, then
+    /// those it replaced.
+    pub fn ca_ders(&self) -> impl Iterator<Item = &[u8]> {
+        std::iter::once(self.ca.der.as_slice()).chain(self.previous_cas.iter().map(|c| c.der.as_slice()))
     }
 
     /// A nonce for an unlock in `env`, or `None` if this verifier does not serve it.
@@ -694,7 +709,7 @@ mod release_window {
                     "a".parse().unwrap(),
                     Subenv { wrapped_dek: String::new(), policy_bundle: "{}".into(), policy_sig: String::new() },
                 )]),
-                ca: Ca { kms_key: "ca".into(), cert_pem: common::b64::pem("CERTIFICATE", p.self_signed(&ca_key).unwrap().der()) },
+                ca: Ca { kms_key: "ca".into(), cert_pem: common::b64::pem("CERTIFICATE", p.self_signed(&ca_key).unwrap().der()), previous_cert_pem: vec![] },
                 dek_kms_key: "dek".into(),
                 release_keys: vec![self.us.pem()],
                 policy_key_pem: String::new(),
@@ -803,6 +818,32 @@ mod release_window {
         assert_eq!(cap, sec_at + 24 * H + 7 * 24 * H);
         assert_eq!(accepts(&v, "clovelly-0.2.0-rc.2", cap - 1), (true, true));
         assert_eq!(accepts(&v, "clovelly-0.2.0-rc.2", cap), (true, false));
+    }
+
+    /// An index served stale, cut short, empty or corrupt takes nothing back: not a
+    /// release, and not a supersession (a stale index must not raise a `valid_until`).
+    #[test]
+    fn a_later_index_cannot_drop_a_release_or_raise_a_lowered_valid_until() {
+        let w = World::new();
+        let v = w.verifier(&[]);
+        let (prev, rel) = ("clovelly-0.2.0-rc.1", "clovelly-0.2.0-rc.2");
+        let cap = AT + 8 * 24 * H;
+        let mut index = w.regular();
+        let stale = index.clone();
+        let supersedes = vec![Supersession { release: rel.parse().unwrap(), valid_until: cap }];
+        index.push(w.fragment("clovelly-0.2.1", 30, Window::Security, AT + H, supersedes));
+        loaded(&v, &index);
+        let in_force = |id: &str| v.policy().release(&id.parse().unwrap()).map(|r| r.valid_until);
+        let before = [prev, rel, "clovelly-0.2.1"].map(in_force);
+        assert_eq!(before[1], Some(cap));
+
+        let mut corrupt = index.clone();
+        corrupt.iter_mut().for_each(|b| b.rekor = None);
+        for later in [vec![], index[..1].to_vec(), stale, corrupt] {
+            v.load_fragments(&later);
+            assert_eq!([prev, rel, "clovelly-0.2.1"].map(in_force), before);
+        }
+        assert_eq!(v.policy().releases.len(), 3, "loading again adds nothing twice");
     }
 
     /// Criterion 5: expiry is refused pinned or not, and the pinned verifier warned 7

@@ -5,10 +5,11 @@
 //! { "env": "staging",
 //!   "subenvs": { "a": { "wrapped_dek": "<KMS ciphertext, base64>",
 //!                       "policy_bundle": "{…}", "policy_sig": "<detached JWS>" } },
-//!   "ca": { "kms_key": "projects/…/cryptoKeyVersions/1", "cert_pem": "-----BEGIN…" },
+//!   "ca": { "kms_key": "projects/…/cryptoKeyVersions/1", "cert_pem": "-----BEGIN…",
+//!           "previous_cert_pem": [] },
 //!   "dek_kms_key": "projects/…/cryptoKeys/dek",
 //!   "release_keys": ["-----BEGIN PUBLIC KEY-----…"],
-//!   "policy_key_pem": "-----BEGIN PUBLIC KEY-----…",
+//!   "policy_key_pem": "-----BEGIN PUBLIC KEY-----…",  (two blocks during a rotation)
 //!   "sdk_token_sha256": "<hex>",
 //!   "pinned_releases": [],
 //!   "fragments_url": "https://…/fragments.json",
@@ -34,8 +35,9 @@ pub struct Config {
     pub dek_kms_key: String,
     /// PEM public keys whose signatures make a release policy valid.
     pub release_keys: Vec<String>,
-    /// The customer's policy public key (PEM), handed to cells at unlock: every policy
-    /// bundle a cell accepts must verify under it.
+    /// The customer's policy public keys (PEM, one block per key), handed to cells at
+    /// every unlock and renewal: a policy bundle a cell accepts must verify under one of
+    /// them. Two while the key rotates (docs/key-rotation.md).
     #[serde(default)]
     pub policy_key_pem: String,
     /// SHA-256 (hex) of the token the customer's SDK presents to `SealCredential`.
@@ -103,4 +105,8 @@ pub struct Ca {
     /// The KMS key version (EC_SIGN_P256_SHA256) that signs cell certificates.
     pub kms_key: String,
     pub cert_pem: String,
+    /// CA certificates this one replaced: cells' certificates under them stay good for
+    /// receipts until their leases end (docs/key-rotation.md).
+    #[serde(default)]
+    pub previous_cert_pem: Vec<String>,
 }

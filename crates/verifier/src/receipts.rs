@@ -93,11 +93,11 @@ impl Record {
     }
 }
 
-/// Verifies `r` for environment `env`, against the environment CA certificate `ca`
-/// (DER) and the published measurement set. An interim record's egress log lines, if
+/// Verifies `r` for environment `env`, against the environment CA certificates `cas`
+/// (DER; more than one while the CA rotates) and the published measurement set. An interim record's egress log lines, if
 /// any, are dropped: only a final record carries the log.
-pub fn check(r: LogRecord, env: &EnvId, ca: &[u8], set: &MeasurementSet) -> Result<Checked, RecordError> {
-    let v = receipt::verify(&r.receipt, &r.signature, &r.cell_cert, ca, set)?;
+pub fn check(r: LogRecord, env: &EnvId, cas: &[&[u8]], set: &MeasurementSet) -> Result<Checked, RecordError> {
+    let v = receipt::verify_any(&r.receipt, &r.signature, &r.cell_cert, cas, set)?;
     if &v.cert.env != env {
         return Err(RecordError::Env(v.cert.env));
     }

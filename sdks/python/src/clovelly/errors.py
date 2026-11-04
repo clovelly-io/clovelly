@@ -51,6 +51,7 @@ __all__ = [
     "NoCellCanHold",
     "NoCellReady",
     "CellCreateFailed",
+    "QuotaExceeded",
     "CellVerificationError",
     "CellUnavailable",
     "ControlPlaneUnavailable",
@@ -190,6 +191,11 @@ class CellCreateFailed(ClovellyError):
     """CELL_CREATE_FAILED: the Compute API refused to create a cell."""
 
 
+class QuotaExceeded(ClovellyError):
+    """QUOTA_EXCEEDED: the environment is at a quota (cells, sandboxes or volume bytes).
+    Refused at once, never queued; the message names the quota."""
+
+
 # Transport.
 
 VerificationKind = Literal["untrusted_certificate", "name_mismatch", "handshake"]
@@ -312,6 +318,7 @@ _CONTROL_REASONS: _ErrorTable = {
     "STORAGE": StorageUnavailable,
     "NO_SUCH_TEMPLATE": NoSuchTemplate,
     "VOLUME_BUSY": VolumeBusy,
+    "QUOTA_EXCEEDED": QuotaExceeded,
 }
 
 _TRANSPORT_CODES = (grpc.StatusCode.UNAVAILABLE, grpc.StatusCode.DEADLINE_EXCEEDED)

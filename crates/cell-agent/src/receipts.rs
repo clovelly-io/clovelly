@@ -6,9 +6,12 @@
 //! records to the customer's verifier (`AppendReceipt`): every [`FLUSH_EVERY`] a
 //! last-will record for each running sandbox (`exit.kind = cell_lost`, `ended` now, not
 //! final), which is what the log keeps if the cell stops without notice, and each
-//! sandbox's final record as soon as it ends, retried until the log has it.
+//! sandbox's final record as soon as it ends, retried until the log has it. A cell ending
+//! in order waits for [`Log::delivered`] before it may be deleted, or its sandboxes' last
+//! wills would stand as `cell_lost`.
 
 use std::collections::VecDeque;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::Duration;
 
@@ -105,13 +108,15 @@ impl Signer {
 pub struct Log {
     verifier: Option<GrpcVerifier>,
     pending: Mutex<VecDeque<LogRecord>>,
+    /// Finals the log has not confirmed: those pending and those in a batch on its way.
+    undelivered: AtomicUsize,
     wake: Notify,
 }
 
 impl Log {
     /// A log delivering to `verifier`; none keeps nothing (the dev server).
     pub fn new(verifier: Option<GrpcVerifier>) -> Arc<Self> {
-        Arc::new(Self { verifier, pending: Mutex::new(VecDeque::new()), wake: Notify::new() })
+        Arc::new(Self { verifier, pending: Mutex::new(VecDeque::new()), undelivered: AtomicUsize::new(0), wake: Notify::new() })
     }
 
     /// Queues a sandbox's final record and delivers it at once.
@@ -122,8 +127,10 @@ impl Log {
         let mut q = self.pending.lock().unwrap_or_else(|p| p.into_inner());
         if q.len() >= MAX_PENDING {
             q.pop_front();
+            self.undelivered.fetch_sub(1, Ordering::Relaxed);
         }
         q.push_back(record);
+        self.undelivered.fetch_add(1, Ordering::Relaxed);
         drop(q);
         self.wake.notify_one();
     }
@@ -131,6 +138,20 @@ impl Log {
     /// Asks for a flush now (a sandbox's state changed, e.g. its volume committed).
     pub fn flush_soon(&self) {
         self.wake.notify_one();
+    }
+
+    /// Waits until the log has confirmed every final record, for at most `within`; says
+    /// whether it did. A verifier that stays unreachable must not keep a cell up for ever.
+    pub async fn delivered(&self, within: Duration) -> bool {
+        self.wake.notify_one();
+        let deadline = tokio::time::Instant::now() + within;
+        while self.undelivered.load(Ordering::Relaxed) > 0 {
+            if tokio::time::Instant::now() >= deadline {
+                return false;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+        true
     }
 
     /// Delivers until the cell ends: every [`FLUSH_EVERY`], and whenever woken, the
@@ -151,11 +172,16 @@ impl Log {
                 continue;
             }
             let n = batch.len();
-            if let Err(e) = verifier.append_receipts(batch).await {
-                status("receipts-undelivered", json!({ "records": n, "error": e }));
-                let mut q = self.pending.lock().unwrap_or_else(|p| p.into_inner());
-                for r in finals.into_iter().rev() {
-                    q.push_front(r);
+            match verifier.append_receipts(batch).await {
+                Ok(_) => {
+                    self.undelivered.fetch_sub(finals.len(), Ordering::Relaxed);
+                }
+                Err(e) => {
+                    status("receipts-undelivered", json!({ "records": n, "error": e }));
+                    let mut q = self.pending.lock().unwrap_or_else(|p| p.into_inner());
+                    for r in finals.into_iter().rev() {
+                        q.push_front(r);
+                    }
                 }
             }
         }
@@ -165,6 +191,21 @@ impl Log {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A cell's ending waits for its finals, and gives up rather than stay up for ever.
+    #[tokio::test]
+    async fn delivered_waits_for_the_finals_and_gives_up() {
+        let log = Log::new(None);
+        assert!(log.delivered(Duration::ZERO).await, "nothing owed");
+        log.undelivered.store(1, Ordering::Relaxed);
+        assert!(!log.delivered(Duration::from_millis(1)).await, "one still owed");
+        let waiting = tokio::spawn({
+            let log = Arc::clone(&log);
+            async move { log.delivered(Duration::from_secs(30)).await }
+        });
+        log.undelivered.store(0, Ordering::Relaxed);
+        assert!(waiting.await.unwrap());
+    }
 
     #[test]
     fn signed_records_carry_their_parts() {

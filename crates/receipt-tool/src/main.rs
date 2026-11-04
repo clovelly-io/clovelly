@@ -29,20 +29,23 @@ use common::receipt::{self, MeasurementSet};
 use serde_json::json;
 
 fn usage() -> ExitCode {
-    eprintln!("usage: clovelly-receipt verify --receipt FILE --signature FILE --cell-cert FILE --ca FILE --measurements FILE");
+    eprintln!("usage: clovelly-receipt verify --receipt FILE --signature FILE --cell-cert FILE --ca FILE (one CA or a bundle) --measurements FILE");
     ExitCode::from(2)
 }
 
-/// A certificate file as DER, whether it holds DER or PEM.
-fn certificate(path: &Path) -> anyhow::Result<Vec<u8>> {
+/// The certificates of a file as DER, whether it holds DER or PEM, and in PEM one or
+/// several: a customer's CA bundle holds its old and new CA after a rotation.
+fn certificates(path: &Path) -> anyhow::Result<Vec<Vec<u8>>> {
     let bytes = std::fs::read(path).with_context(|| path.display().to_string())?;
     match std::str::from_utf8(&bytes).ok().filter(|t| t.contains("-----BEGIN CERTIFICATE-----")) {
-        Some(text) => common::b64::pem_blocks(text, "CERTIFICATE")?
-            .into_iter()
-            .next()
-            .with_context(|| format!("{}: no certificate", path.display())),
-        None => Ok(bytes),
+        Some(text) => Ok(common::b64::pem_blocks(text, "CERTIFICATE")?),
+        None => Ok(vec![bytes]),
     }
+}
+
+/// A certificate file's first certificate as DER.
+fn certificate(path: &Path) -> anyhow::Result<Vec<u8>> {
+    certificates(path)?.into_iter().next().with_context(|| format!("{}: no certificate", path.display()))
 }
 
 /// A signature file: 64 raw bytes, or base64 or hex text of them.
@@ -66,9 +69,10 @@ fn verify(args: &[String]) -> anyhow::Result<receipt::Verified> {
     let receipt = std::fs::read(get("--receipt")?).context("--receipt")?;
     let sig = signature(get("--signature")?.as_ref())?;
     let cell = certificate(get("--cell-cert")?.as_ref())?;
-    let ca = certificate(get("--ca")?.as_ref())?;
+    let cas = certificates(get("--ca")?.as_ref())?;
+    let cas: Vec<&[u8]> = cas.iter().map(Vec::as_slice).collect();
     let set = MeasurementSet::from_json(&std::fs::read(get("--measurements")?).context("--measurements")?)?;
-    Ok(receipt::verify(&receipt, &sig, &cell, &ca, &set)?)
+    Ok(receipt::verify_any(&receipt, &sig, &cell, &cas, &set)?)
 }
 
 fn main() -> ExitCode {

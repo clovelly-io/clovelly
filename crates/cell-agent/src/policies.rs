@@ -1,8 +1,14 @@
 //! The sub-environment's policy bundle on the cell (SPEC.md "Policy refresh"): the
 //! bundle from the unlock, then whatever the customer's verifier serves, polled every
-//! 60 seconds. Every bundle is verified against the customer's policy key, pinned from
-//! the cell's first unlock, and refused if its signature, environment, expiry, version
-//! (older than the one in force) or any destination is wrong.
+//! 60 seconds. Every bundle is verified against the customer's policy keys, as the
+//! latest unlock or renewal named them, and refused if its signature, environment,
+//! expiry, version (older than the one in force) or any destination is wrong.
+//!
+//! The keys come with each renewal so the customer can rotate the policy key without a
+//! refused bundle: the verifier names the old and the new key for at least one lease,
+//! then bundles signed by the new key, then the new key alone (docs/key-rotation.md). A
+//! renewal comes from the same verifier as the first unlock, over the same channel, so
+//! this trusts nothing the first unlock did not.
 //!
 //! A refused bundle stops new sandboxes (`POLICY_REFUSED`) until the verifier serves one
 //! the cell accepts: the verifier's latest word is a bundle the cell cannot trust, so
@@ -32,7 +38,7 @@ struct State {
 
 /// The cell's policy state.
 pub struct Policies {
-    key: Option<TrustedKey>,
+    keys: Mutex<Vec<TrustedKey>>,
     env: EnvId,
     subenv: SubenvId,
     placeable: Size,
@@ -40,15 +46,15 @@ pub struct Policies {
 }
 
 impl Policies {
-    /// With the policy key from the first unlock (PEM); a missing or bad key refuses
-    /// every bundle.
-    pub fn new(env: EnvId, subenv: SubenvId, placeable: Size, key_pem: &str) -> Arc<Self> {
-        let key = TrustedKey::from_pem(key_pem).ok();
-        if key.is_none() {
+    /// With the policy keys from the first unlock (PEM, one block per key); no key
+    /// refuses every bundle.
+    pub fn new(env: EnvId, subenv: SubenvId, placeable: Size, keys_pem: &str) -> Arc<Self> {
+        let keys = trusted_keys(keys_pem);
+        if keys.is_empty() {
             status("policy-key-missing", json!({}));
         }
         Arc::new(Self {
-            key,
+            keys: Mutex::new(keys),
             env,
             subenv,
             placeable,
@@ -60,12 +66,29 @@ impl Policies {
         self.state.lock().unwrap_or_else(|p| p.into_inner())
     }
 
+    /// Takes the policy keys a renewal named. A renewal naming none keeps those in force:
+    /// an older verifier may not send them, and no key would stop every new sandbox.
+    pub fn set_keys(&self, keys_pem: &str) {
+        let keys = trusted_keys(keys_pem);
+        if !keys.is_empty() {
+            *self.keys.lock().unwrap_or_else(|p| p.into_inner()) = keys;
+        }
+    }
+
     /// Verifies a bundle (from an unlock, a renewal or a poll) and puts it in force, or
     /// records why not.
     pub fn offer(&self, bundle: &[u8], sig: &str, from: &str) -> Result<Arc<Policy>, BundleError> {
-        let verified = match &self.key {
-            Some(key) => Policy::verify(bundle, sig, key, &self.env, &self.subenv, SystemTime::now(), self.placeable),
-            None => Err(BundleError::Invalid("no policy key from the unlock".into())),
+        let verified = {
+            let keys = self.keys.lock().unwrap_or_else(|p| p.into_inner());
+            let mut verdict = Err(BundleError::Invalid("no policy key from the unlock".into()));
+            for key in keys.iter() {
+                verdict = Policy::verify(bundle, sig, key, &self.env, &self.subenv, SystemTime::now(), self.placeable);
+                if verdict.is_ok() {
+                    break;
+                }
+            }
+            // The last key's refusal stands for all: a bundle that no key opens.
+            verdict
         };
         let mut state = self.lock();
         let result = verified.and_then(|p| {
@@ -103,6 +126,15 @@ impl Policies {
         }
         Ok(p)
     }
+}
+
+/// Each `PUBLIC KEY` block of `pem` as a key; a block that does not parse is left out.
+fn trusted_keys(pem: &str) -> Vec<TrustedKey> {
+    common::b64::pem_blocks(pem, "PUBLIC KEY")
+        .unwrap_or_default()
+        .iter()
+        .filter_map(|der| TrustedKey::from_pem(&common::b64::pem("PUBLIC KEY", der)).ok())
+        .collect()
 }
 
 /// Polls the verifier every [`POLL`] for the sub-environment's bundle, forever.
@@ -180,6 +212,40 @@ mod tests {
 
         assert!(p.offer(&v1, &sign(&kp, &v1), "poll").is_err(), "an older version is a rollback");
         assert!(p.current().unwrap_err().starts_with("rollback"));
+    }
+
+    /// Criterion 11: a policy key rotates with no refused bundle. Bundles signed by the
+    /// old key keep working once a renewal names both; then the new key's are accepted;
+    /// then the old key's are refused once a renewal names the new key alone.
+    #[test]
+    fn key_rotation_keeps_unlocks_and_placements_working() {
+        let (old, old_pem) = signer();
+        let (new, new_pem) = signer();
+        let p = policies(&old_pem);
+        let v1 = bundle(1, 3600, "[]");
+        p.offer(&v1, &sign(&old, &v1), "unlock").unwrap();
+
+        // A bundle under the new key before any renewal named it is refused: why the
+        // key is introduced a lease ahead of signing with it.
+        let early = bundle(2, 3600, "[]");
+        assert!(p.offer(&early, &sign(&new, &early), "poll").is_err());
+        p.offer(&v1, &sign(&old, &v1), "poll").unwrap();
+        assert_eq!(p.current().unwrap().version, 1);
+
+        // A renewal names both: old bundles still pass, new ones too.
+        p.set_keys(&format!("{old_pem}{new_pem}"));
+        p.offer(&v1, &sign(&old, &v1), "poll").unwrap();
+        let v2 = bundle(2, 3600, "[]");
+        p.offer(&v2, &sign(&new, &v2), "poll").unwrap();
+        assert_eq!(p.current().unwrap().version, 2);
+
+        // A renewal names the new key alone: only it passes. An empty name changes nothing.
+        p.set_keys(&new_pem);
+        p.set_keys("");
+        let v3 = bundle(3, 3600, "[]");
+        assert!(p.offer(&v3, &sign(&old, &v3), "poll").is_err());
+        p.offer(&v3, &sign(&new, &v3), "poll").unwrap();
+        assert_eq!(p.current().unwrap().version, 3);
     }
 
     #[test]

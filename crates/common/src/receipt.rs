@@ -192,6 +192,20 @@ fn field<'a>(doc: &'a Value, path: &[&str], name: &'static str) -> Result<&'a st
         .ok_or(ReceiptError::Field(name))
 }
 
+/// [`verify`] against several CA certificates, the first that issued the cell
+/// certificate deciding: during an environment CA rotation, and for receipts older than
+/// one, a receipt's certificate may chain to the CA before the current one.
+pub fn verify_any(json: &[u8], sig: &[u8], cell_cert: &[u8], cas: &[&[u8]], set: &MeasurementSet) -> Result<Verified, ReceiptError> {
+    let mut verdict = Err(ReceiptError::Chain);
+    for ca in cas {
+        verdict = verify(json, sig, cell_cert, ca, set);
+        if !matches!(verdict, Err(ReceiptError::Chain)) {
+            break;
+        }
+    }
+    verdict
+}
+
 /// Verifies a receipt (see the module docs). `json` must be exactly the signed,
 /// canonical bytes.
 pub fn verify(json: &[u8], sig: &[u8], cell_cert: &[u8], ca_cert: &[u8], set: &MeasurementSet) -> Result<Verified, ReceiptError> {

@@ -56,6 +56,9 @@ use crate::{cgroup, tls};
 /// The control-plane CA, baked into the image (Drain's client certificates and the
 /// control plane's cell-channel certificate chain to it).
 pub const CONTROL_PLANE_CA: &str = "/clovelly/control-plane-ca.pem";
+/// How long a cell ending in order waits for the log to confirm its final receipts: two of the
+/// log's retries and a slow verifier.
+const RECEIPTS_AT_END: std::time::Duration = std::time::Duration::from_secs(30);
 const BASE_ROOTFS: &str = "/run/clovelly/base/rootfs";
 const RUNSC_STATE: &str = "/run/clovelly/runsc";
 const BUNDLES: &str = "/run/clovelly/bundles";
@@ -323,10 +326,11 @@ async fn serve(
     }
     let terms = SharedTerms::new(&first, cell_end);
     let certs = tls::CertSwap::new(&first.cell_cert, &key)?;
-    let control_ca_der = control_ca_pem
+    let control_cas = control_ca_pem
         .as_deref()
-        .and_then(|pem| b64::pem_blocks(std::str::from_utf8(pem).ok()?, "CERTIFICATE").ok()?.into_iter().next());
-    let tls_config = Arc::new(tls::server_config(Arc::clone(&certs), control_ca_der.as_deref())?);
+        .and_then(|pem| b64::pem_blocks(std::str::from_utf8(pem).ok()?, "CERTIFICATE").ok())
+        .unwrap_or_default();
+    let tls_config = Arc::new(tls::server_config(Arc::clone(&certs), &control_cas)?);
     let (drain_tx, drain_rx) = watch::channel(DrainState::Serving);
     let cell_api = CellApi {
         sandboxes: Arc::clone(&sandboxes),
@@ -454,6 +458,11 @@ async fn serve(
         status("ended", json!({ "pid": std::process::id() }));
         let mut line = String::new();
         let _ = tokio::task::spawn_blocking(move || std::io::stdin().read_line(&mut line)).await;
+    }
+    // The report below lets the control plane delete this VM: the log has every final record
+    // first, or those sandboxes' last wills stand as `cell_lost`.
+    if !receipt_log.delivered(RECEIPTS_AT_END).await {
+        status("receipts-undelivered-at-end", json!({}));
     }
     drain_tx.send_replace(DrainState::Recycle);
     if let Some(reporter) = reporter {

@@ -254,6 +254,7 @@ None), `.code` (the gRPC status code name) and `.details`.
 | `NO_CELL_CAN_HOLD` | `NoCellCanHold` | control plane |
 | `NO_CELL_READY` | `NoCellReady` | control plane |
 | `CELL_CREATE_FAILED` | `CellCreateFailed` | control plane |
+| `QUOTA_EXCEEDED` | `QuotaExceeded` | control plane |
 | `STORAGE` | `StorageUnavailable` | control plane |
 | `NO_SUCH_TEMPLATE` | `NoSuchTemplate` | control plane |
 

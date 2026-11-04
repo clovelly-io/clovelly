@@ -196,3 +196,60 @@ fn flag(args: &[String], name: &str) -> anyhow::Result<String> {
         .cloned()
         .with_context(|| format!("{name} is required"))
 }
+
+#[cfg(test)]
+mod tests {
+    use std::io::{BufRead, BufReader, Write};
+    use std::net::TcpListener;
+
+    use super::*;
+
+    const INDEX: &[u8] = include_bytes!("../tests/data/fragments-public.json");
+
+    /// Answers one request and returns the URL to send it to.
+    fn serve(status: &'static str, content_type: &'static str, body: &'static [u8]) -> String {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/fragments.json", listener.local_addr().unwrap());
+        std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = BufReader::new(stream.try_clone().unwrap());
+            let mut line = String::new();
+            while request.read_line(&mut line).unwrap() > 0 && line != "\r\n" {
+                line.clear();
+            }
+            let head = format!("HTTP/1.1 {status}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len());
+            stream.write_all(head.as_bytes()).unwrap();
+            stream.write_all(body).unwrap();
+        });
+        url
+    }
+
+    fn http() -> reqwest::Client {
+        let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+        reqwest::Client::new()
+    }
+
+    /// raw.githubusercontent.com serves the index as text/plain.
+    #[tokio::test]
+    async fn the_published_index_is_fetched_as_the_public_repository_serves_it() {
+        let url = serve("200 OK", "text/plain; charset=utf-8", INDEX);
+        let bundles = fetch_fragments(&http(), &url).await.unwrap();
+        assert_eq!(bundles.len(), 2);
+    }
+
+    /// Each of these is an error, so `refresh` keeps what is loaded; none may reach
+    /// `load_fragments` as an index.
+    #[tokio::test]
+    async fn a_failed_fetch_is_an_error_and_not_an_empty_index() {
+        for (status, body) in [
+            ("404 Not Found", &b"404: Not Found"[..]),
+            ("429 Too Many Requests", b"[]"),
+            ("500 Internal Server Error", b"[]"),
+            ("200 OK", b"<!doctype html><title>Unicorn</title>"),
+            ("200 OK", &INDEX[..INDEX.len() / 2]),
+        ] {
+            let url = serve(status, "text/plain", body);
+            assert!(fetch_fragments(&http(), &url).await.is_err(), "{status}");
+        }
+    }
+}

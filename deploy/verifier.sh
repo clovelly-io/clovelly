@@ -86,9 +86,9 @@ setup() {
     subenvs=$(jq --arg s "$sub" --arg d "$(base64 < "$dek_file.kms" | tr -d '\n')" \
       --arg b "$bundle" --arg g "$sig" '. + {($s): {wrapped_dek: $d, policy_bundle: $b, policy_sig: $g}}' <<< "$subenvs")
   done
-  # A re-run keeps the release keys and pins already configured.
+  # A re-run keeps the release keys, pins and fragments settings already configured.
   local keep='{"release_keys": [], "pinned_releases": []}'
-  [ -s "$out/config.json" ] && keep=$(jq -c '{release_keys, pinned_releases}' "$out/config.json")
+  [ -s "$out/config.json" ] && keep=$(jq -c 'with_entries(select(.key | IN("release_keys", "pinned_releases", "fragments_url", "rekor_keys")))' "$out/config.json")
   # Cells verify every policy bundle against this key (UnlockResponse.policy_key).
   verifier public-key --kms-key "$policy_key" > "$out/policy.pub.pem"
   jq -n --arg env "$env" --argjson subenvs "$subenvs" --arg ca_key "$ca_key" \

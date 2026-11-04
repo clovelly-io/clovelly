@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n#clovelly/verifier/v1/verifier.proto\x12\x14\x63lovelly.verifier.v1\"!\n\x0fGetNonceRequest\x12\x0e\n\x06\x65nv_id\x18\x01 \x01(\t\"!\n\x10GetNonceResponse\x12\r\n\x05nonce\x18\x01 \x01(\x0c\"\xb6\x01\n\x08\x45vidence\x12\r\n\x05quote\x18\x01 \x01(\x0c\x12\x12\n\nccel_table\x18\x02 \x01(\x0c\x12\x10\n\x08\x63\x63\x65l_log\x18\x03 \x01(\x0c\x12\x0e\n\x06\x65nv_id\x18\x04 \x01(\t\x12\x11\n\tsubenv_id\x18\x05 \x01(\t\x12\x12\n\nrelease_id\x18\x06 \x01(\t\x12\x0c\n\x04spki\x18\x07 \x01(\x0c\x12\r\n\x05nonce\x18\x08 \x01(\x0c\x12\x13\n\x0binstance_id\x18\t \x01(\x04\x12\x0c\n\x04zone\x18\n \x01(\t\"A\n\rUnlockRequest\x12\x30\n\x08\x65vidence\x18\x01 \x01(\x0b\x32\x1e.clovelly.verifier.v1.Evidence\"\x98\x01\n\x0eUnlockResponse\x12\x11\n\tcell_cert\x18\x01 \x01(\x0c\x12\x17\n\x0fwrapped_env_dek\x18\x02 \x01(\x0c\x12\x15\n\rpolicy_bundle\x18\x03 \x01(\x0c\x12\x12\n\npolicy_sig\x18\x04 \x01(\t\x12\x1b\n\x13release_valid_until\x18\x05 \x01(\x04\x12\x12\n\npolicy_key\x18\x06 \x01(\t\"\x1e\n\x0cGetCARequest\x12\x0e\n\x06\x65nv_id\x18\x01 \x01(\t\" \n\rGetCAResponse\x12\x0f\n\x07\x63\x61_cert\x18\x01 \x01(\x0c\"5\n\x10GetPolicyRequest\x12\x0e\n\x06\x65nv_id\x18\x01 \x01(\t\x12\x11\n\tsubenv_id\x18\x02 \x01(\t\">\n\x11GetPolicyResponse\x12\x15\n\rpolicy_bundle\x18\x01 \x01(\x0c\x12\x12\n\npolicy_sig\x18\x02 \x01(\t\"~\n\x15SealCredentialRequest\x12\x0e\n\x06\x65nv_id\x18\x01 \x01(\t\x12\x11\n\tsubenv_id\x18\x02 \x01(\t\x12\x0c\n\x04name\x18\x03 \x01(\t\x12\x0f\n\x07\x61\x64\x61pter\x18\x04 \x01(\t\x12\x13\n\x0b\x64\x65stination\x18\x05 \x01(\t\x12\x0e\n\x06secret\x18\x06 \x01(\x0c\"(\n\x16SealCredentialResponse\x12\x0e\n\x06sealed\x18\x01 \x01(\x0c\"K\n\x16SealTemplateKeyRequest\x12\x0e\n\x06\x65nv_id\x18\x01 \x01(\t\x12\x11\n\tsubenv_id\x18\x02 \x01(\t\x12\x0e\n\x06\x64igest\x18\x03 \x01(\t\":\n\x17SealTemplateKeyResponse\x12\x0b\n\x03key\x18\x01 \x01(\x0c\x12\x12\n\nsealed_key\x18\x02 \x01(\x0c\"e\n\tLogRecord\x12\x0f\n\x07receipt\x18\x01 \x01(\x0c\x12\x11\n\tsignature\x18\x02 \x01(\x0c\x12\x11\n\tcell_cert\x18\x03 \x01(\x0c\x12\r\n\x05\x66inal\x18\x04 \x01(\x08\x12\x12\n\negress_log\x18\x05 \x03(\t\"H\n\x14\x41ppendReceiptRequest\x12\x30\n\x07records\x18\x01 \x03(\x0b\x32\x1f.clovelly.verifier.v1.LogRecord\"\x17\n\x15\x41ppendReceiptResponse\"M\n\x13ListReceiptsRequest\x12\x0e\n\x06\x65nv_id\x18\x01 \x01(\t\x12\x11\n\tsubenv_id\x18\x02 \x01(\t\x12\x13\n\x0bsandbox_ids\x18\x03 \x03(\t\"\x90\x01\n\rLoggedReceipt\x12\x0f\n\x07receipt\x18\x01 \x01(\x0c\x12\x11\n\tsignature\x18\x02 \x01(\x0c\x12\x11\n\tcell_cert\x18\x03 \x01(\x0c\x12\r\n\x05\x66inal\x18\x04 \x01(\x08\x12\x18\n\x10received_unix_ms\x18\x05 \x01(\x04\x12\x0f\n\x07records\x18\x06 \x01(\r\x12\x0e\n\x06\x66inals\x18\x07 \x01(\r\"M\n\x14ListReceiptsResponse\x12\x35\n\x08receipts\x18\x01 \x03(\x0b\x32#.clovelly.verifier.v1.LoggedReceipt\"9\n\x13GetEgressLogRequest\x12\x0e\n\x06\x65nv_id\x18\x01 \x01(\t\x12\x12\n\nsandbox_id\x18\x02 \x01(\t\"5\n\x14GetEgressLogResponse\x12\r\n\x05lines\x18\x01 \x03(\t\x12\x0e\n\x06sha256\x18\x02 \x01(\t2\xff\x06\n\x08Verifier\x12Y\n\x08GetNonce\x12%.clovelly.verifier.v1.GetNonceRequest\x1a&.clovelly.verifier.v1.GetNonceResponse\x12S\n\x06Unlock\x12#.clovelly.verifier.v1.UnlockRequest\x1a$.clovelly.verifier.v1.UnlockResponse\x12P\n\x05GetCA\x12\".clovelly.verifier.v1.GetCARequest\x1a#.clovelly.verifier.v1.GetCAResponse\x12\\\n\tGetPolicy\x12&.clovelly.verifier.v1.GetPolicyRequest\x1a\'.clovelly.verifier.v1.GetPolicyResponse\x12k\n\x0eSealCredential\x12+.clovelly.verifier.v1.SealCredentialRequest\x1a,.clovelly.verifier.v1.SealCredentialResponse\x12n\n\x0fSealTemplateKey\x12,.clovelly.verifier.v1.SealTemplateKeyRequest\x1a-.clovelly.verifier.v1.SealTemplateKeyResponse\x12h\n\rAppendReceipt\x12*.clovelly.verifier.v1.AppendReceiptRequest\x1a+.clovelly.verifier.v1.AppendReceiptResponse\x12\x65\n\x0cListReceipts\x12).clovelly.verifier.v1.ListReceiptsRequest\x1a*.clovelly.verifier.v1.ListReceiptsResponse\x12\x65\n\x0cGetEgressLog\x12).clovelly.verifier.v1.GetEgressLogRequest\x1a*.clovelly.verifier.v1.GetEgressLogResponseb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n#clovelly/verifier/v1/verifier.proto\x12\x14\x63lovelly.verifier.v1\"!\n\x0fGetNonceRequest\x12\x0e\n\x06\x65nv_id\x18\x01 \x01(\t\"!\n\x10GetNonceResponse\x12\r\n\x05nonce\x18\x01 \x01(\x0c\"\xb6\x01\n\x08\x45vidence\x12\r\n\x05quote\x18\x01 \x01(\x0c\x12\x12\n\nccel_table\x18\x02 \x01(\x0c\x12\x10\n\x08\x63\x63\x65l_log\x18\x03 \x01(\x0c\x12\x0e\n\x06\x65nv_id\x18\x04 \x01(\t\x12\x11\n\tsubenv_id\x18\x05 \x01(\t\x12\x12\n\nrelease_id\x18\x06 \x01(\t\x12\x0c\n\x04spki\x18\x07 \x01(\x0c\x12\r\n\x05nonce\x18\x08 \x01(\x0c\x12\x13\n\x0binstance_id\x18\t \x01(\x04\x12\x0c\n\x04zone\x18\n \x01(\t\"A\n\rUnlockRequest\x12\x30\n\x08\x65vidence\x18\x01 \x01(\x0b\x32\x1e.clovelly.verifier.v1.Evidence\"\x98\x01\n\x0eUnlockResponse\x12\x11\n\tcell_cert\x18\x01 \x01(\x0c\x12\x17\n\x0fwrapped_env_dek\x18\x02 \x01(\x0c\x12\x15\n\rpolicy_bundle\x18\x03 \x01(\x0c\x12\x12\n\npolicy_sig\x18\x04 \x01(\t\x12\x1b\n\x13release_valid_until\x18\x05 \x01(\x04\x12\x12\n\npolicy_key\x18\x06 \x01(\t\"\x1e\n\x0cGetCARequest\x12\x0e\n\x06\x65nv_id\x18\x01 \x01(\t\";\n\rGetCAResponse\x12\x0f\n\x07\x63\x61_cert\x18\x01 \x01(\x0c\x12\x19\n\x11previous_ca_certs\x18\x02 \x03(\x0c\"5\n\x10GetPolicyRequest\x12\x0e\n\x06\x65nv_id\x18\x01 \x01(\t\x12\x11\n\tsubenv_id\x18\x02 \x01(\t\">\n\x11GetPolicyResponse\x12\x15\n\rpolicy_bundle\x18\x01 \x01(\x0c\x12\x12\n\npolicy_sig\x18\x02 \x01(\t\"~\n\x15SealCredentialRequest\x12\x0e\n\x06\x65nv_id\x18\x01 \x01(\t\x12\x11\n\tsubenv_id\x18\x02 \x01(\t\x12\x0c\n\x04name\x18\x03 \x01(\t\x12\x0f\n\x07\x61\x64\x61pter\x18\x04 \x01(\t\x12\x13\n\x0b\x64\x65stination\x18\x05 \x01(\t\x12\x0e\n\x06secret\x18\x06 \x01(\x0c\"(\n\x16SealCredentialResponse\x12\x0e\n\x06sealed\x18\x01 \x01(\x0c\"K\n\x16SealTemplateKeyRequest\x12\x0e\n\x06\x65nv_id\x18\x01 \x01(\t\x12\x11\n\tsubenv_id\x18\x02 \x01(\t\x12\x0e\n\x06\x64igest\x18\x03 \x01(\t\":\n\x17SealTemplateKeyResponse\x12\x0b\n\x03key\x18\x01 \x01(\x0c\x12\x12\n\nsealed_key\x18\x02 \x01(\x0c\"e\n\tLogRecord\x12\x0f\n\x07receipt\x18\x01 \x01(\x0c\x12\x11\n\tsignature\x18\x02 \x01(\x0c\x12\x11\n\tcell_cert\x18\x03 \x01(\x0c\x12\r\n\x05\x66inal\x18\x04 \x01(\x08\x12\x12\n\negress_log\x18\x05 \x03(\t\"H\n\x14\x41ppendReceiptRequest\x12\x30\n\x07records\x18\x01 \x03(\x0b\x32\x1f.clovelly.verifier.v1.LogRecord\"\x17\n\x15\x41ppendReceiptResponse\"M\n\x13ListReceiptsRequest\x12\x0e\n\x06\x65nv_id\x18\x01 \x01(\t\x12\x11\n\tsubenv_id\x18\x02 \x01(\t\x12\x13\n\x0bsandbox_ids\x18\x03 \x03(\t\"\x90\x01\n\rLoggedReceipt\x12\x0f\n\x07receipt\x18\x01 \x01(\x0c\x12\x11\n\tsignature\x18\x02 \x01(\x0c\x12\x11\n\tcell_cert\x18\x03 \x01(\x0c\x12\r\n\x05\x66inal\x18\x04 \x01(\x08\x12\x18\n\x10received_unix_ms\x18\x05 \x01(\x04\x12\x0f\n\x07records\x18\x06 \x01(\r\x12\x0e\n\x06\x66inals\x18\x07 \x01(\r\"M\n\x14ListReceiptsResponse\x12\x35\n\x08receipts\x18\x01 \x03(\x0b\x32#.clovelly.verifier.v1.LoggedReceipt\"9\n\x13GetEgressLogRequest\x12\x0e\n\x06\x65nv_id\x18\x01 \x01(\t\x12\x12\n\nsandbox_id\x18\x02 \x01(\t\"5\n\x14GetEgressLogResponse\x12\r\n\x05lines\x18\x01 \x03(\t\x12\x0e\n\x06sha256\x18\x02 \x01(\t2\xff\x06\n\x08Verifier\x12Y\n\x08GetNonce\x12%.clovelly.verifier.v1.GetNonceRequest\x1a&.clovelly.verifier.v1.GetNonceResponse\x12S\n\x06Unlock\x12#.clovelly.verifier.v1.UnlockRequest\x1a$.clovelly.verifier.v1.UnlockResponse\x12P\n\x05GetCA\x12\".clovelly.verifier.v1.GetCARequest\x1a#.clovelly.verifier.v1.GetCAResponse\x12\\\n\tGetPolicy\x12&.clovelly.verifier.v1.GetPolicyRequest\x1a\'.clovelly.verifier.v1.GetPolicyResponse\x12k\n\x0eSealCredential\x12+.clovelly.verifier.v1.SealCredentialRequest\x1a,.clovelly.verifier.v1.SealCredentialResponse\x12n\n\x0fSealTemplateKey\x12,.clovelly.verifier.v1.SealTemplateKeyRequest\x1a-.clovelly.verifier.v1.SealTemplateKeyResponse\x12h\n\rAppendReceipt\x12*.clovelly.verifier.v1.AppendReceiptRequest\x1a+.clovelly.verifier.v1.AppendReceiptResponse\x12\x65\n\x0cListReceipts\x12).clovelly.verifier.v1.ListReceiptsRequest\x1a*.clovelly.verifier.v1.ListReceiptsResponse\x12\x65\n\x0cGetEgressLog\x12).clovelly.verifier.v1.GetEgressLogRequest\x1a*.clovelly.verifier.v1.GetEgressLogResponseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -44,35 +44,35 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_GETCAREQUEST']._serialized_start=538
   _globals['_GETCAREQUEST']._serialized_end=568
   _globals['_GETCARESPONSE']._serialized_start=570
-  _globals['_GETCARESPONSE']._serialized_end=602
-  _globals['_GETPOLICYREQUEST']._serialized_start=604
-  _globals['_GETPOLICYREQUEST']._serialized_end=657
-  _globals['_GETPOLICYRESPONSE']._serialized_start=659
-  _globals['_GETPOLICYRESPONSE']._serialized_end=721
-  _globals['_SEALCREDENTIALREQUEST']._serialized_start=723
-  _globals['_SEALCREDENTIALREQUEST']._serialized_end=849
-  _globals['_SEALCREDENTIALRESPONSE']._serialized_start=851
-  _globals['_SEALCREDENTIALRESPONSE']._serialized_end=891
-  _globals['_SEALTEMPLATEKEYREQUEST']._serialized_start=893
-  _globals['_SEALTEMPLATEKEYREQUEST']._serialized_end=968
-  _globals['_SEALTEMPLATEKEYRESPONSE']._serialized_start=970
-  _globals['_SEALTEMPLATEKEYRESPONSE']._serialized_end=1028
-  _globals['_LOGRECORD']._serialized_start=1030
-  _globals['_LOGRECORD']._serialized_end=1131
-  _globals['_APPENDRECEIPTREQUEST']._serialized_start=1133
-  _globals['_APPENDRECEIPTREQUEST']._serialized_end=1205
-  _globals['_APPENDRECEIPTRESPONSE']._serialized_start=1207
-  _globals['_APPENDRECEIPTRESPONSE']._serialized_end=1230
-  _globals['_LISTRECEIPTSREQUEST']._serialized_start=1232
-  _globals['_LISTRECEIPTSREQUEST']._serialized_end=1309
-  _globals['_LOGGEDRECEIPT']._serialized_start=1312
-  _globals['_LOGGEDRECEIPT']._serialized_end=1456
-  _globals['_LISTRECEIPTSRESPONSE']._serialized_start=1458
-  _globals['_LISTRECEIPTSRESPONSE']._serialized_end=1535
-  _globals['_GETEGRESSLOGREQUEST']._serialized_start=1537
-  _globals['_GETEGRESSLOGREQUEST']._serialized_end=1594
-  _globals['_GETEGRESSLOGRESPONSE']._serialized_start=1596
-  _globals['_GETEGRESSLOGRESPONSE']._serialized_end=1649
-  _globals['_VERIFIER']._serialized_start=1652
-  _globals['_VERIFIER']._serialized_end=2547
+  _globals['_GETCARESPONSE']._serialized_end=629
+  _globals['_GETPOLICYREQUEST']._serialized_start=631
+  _globals['_GETPOLICYREQUEST']._serialized_end=684
+  _globals['_GETPOLICYRESPONSE']._serialized_start=686
+  _globals['_GETPOLICYRESPONSE']._serialized_end=748
+  _globals['_SEALCREDENTIALREQUEST']._serialized_start=750
+  _globals['_SEALCREDENTIALREQUEST']._serialized_end=876
+  _globals['_SEALCREDENTIALRESPONSE']._serialized_start=878
+  _globals['_SEALCREDENTIALRESPONSE']._serialized_end=918
+  _globals['_SEALTEMPLATEKEYREQUEST']._serialized_start=920
+  _globals['_SEALTEMPLATEKEYREQUEST']._serialized_end=995
+  _globals['_SEALTEMPLATEKEYRESPONSE']._serialized_start=997
+  _globals['_SEALTEMPLATEKEYRESPONSE']._serialized_end=1055
+  _globals['_LOGRECORD']._serialized_start=1057
+  _globals['_LOGRECORD']._serialized_end=1158
+  _globals['_APPENDRECEIPTREQUEST']._serialized_start=1160
+  _globals['_APPENDRECEIPTREQUEST']._serialized_end=1232
+  _globals['_APPENDRECEIPTRESPONSE']._serialized_start=1234
+  _globals['_APPENDRECEIPTRESPONSE']._serialized_end=1257
+  _globals['_LISTRECEIPTSREQUEST']._serialized_start=1259
+  _globals['_LISTRECEIPTSREQUEST']._serialized_end=1336
+  _globals['_LOGGEDRECEIPT']._serialized_start=1339
+  _globals['_LOGGEDRECEIPT']._serialized_end=1483
+  _globals['_LISTRECEIPTSRESPONSE']._serialized_start=1485
+  _globals['_LISTRECEIPTSRESPONSE']._serialized_end=1562
+  _globals['_GETEGRESSLOGREQUEST']._serialized_start=1564
+  _globals['_GETEGRESSLOGREQUEST']._serialized_end=1621
+  _globals['_GETEGRESSLOGRESPONSE']._serialized_start=1623
+  _globals['_GETEGRESSLOGRESPONSE']._serialized_end=1676
+  _globals['_VERIFIER']._serialized_start=1679
+  _globals['_VERIFIER']._serialized_end=2574
 # @@protoc_insertion_point(module_scope)

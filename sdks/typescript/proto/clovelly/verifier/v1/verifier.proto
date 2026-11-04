@@ -105,6 +105,9 @@ message GetCARequest {
 
 message GetCAResponse {
   bytes ca_cert = 1;
+  // CA certificates ca_cert replaced, while cells may still hold certificates under them
+  // (docs/key-rotation.md). An SDK's bundle holds these and ca_cert during a rotation.
+  repeated bytes previous_ca_certs = 2;
 }
 
 message GetPolicyRequest {

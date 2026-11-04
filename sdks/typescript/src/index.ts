@@ -40,6 +40,7 @@ export {
   InvalidSandboxId,
   NoCellCanHold,
   NoCellReady,
+  QuotaExceeded,
   NoSuchCell,
   NoSuchEnvironment,
   NoSuchPool,

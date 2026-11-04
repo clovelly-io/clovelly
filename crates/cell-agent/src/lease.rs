@@ -168,6 +168,7 @@ pub fn apply<'a>(
         }
         signer.set_cert(&next.cell_cert);
         terms.update(next);
+        policies.set_keys(&next.policy_key);
         let _ = policies.offer(&next.policy_bundle, &next.policy_sig, "renewal");
     }
 }

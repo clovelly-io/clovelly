@@ -21,6 +21,8 @@ tie that hash to code you can read.
 | `crates/rebuild`, `release/` | Rebuilding a release and comparing it with the public log ([REPRODUCE.md](REPRODUCE.md)) |
 | `crates/receipt-tool` | `clovelly-receipt`: checks a sandbox receipt |
 | `sdks/`, `proto/` | The Python (`clovelly`) and TypeScript (`@clovelly/sdk`) SDKs and the gRPC protocol |
+| `docs/quickstart.md` | From nothing to your first sandbox |
+| `docs/evidence-pack.md` | Everything you need to check our claims, in one index |
 | `docs/threat-model.md` | What the system trusts and defends against |
 
 ## Building and testing

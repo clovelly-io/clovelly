@@ -67,22 +67,24 @@ impl ResolvesServerCert for CertSwap {
     }
 }
 
-/// A TLS 1.2/1.3 server config offering HTTP/2. With `client_ca` (DER), a client may
-/// present a certificate from that CA; one that presents any other certificate fails
-/// the handshake, and one that presents none is served as anonymous.
-pub fn server_config(certs: Arc<CertSwap>, client_ca: Option<&[u8]>) -> Result<ServerConfig, TlsError> {
+/// A TLS 1.2/1.3 server config offering HTTP/2. With `client_cas` (DER; the image bakes
+/// two while the control-plane CA rotates), a client may present a certificate from one
+/// of them; one that presents any other certificate fails the handshake, and one that
+/// presents none is served as anonymous.
+pub fn server_config(certs: Arc<CertSwap>, client_cas: &[Vec<u8>]) -> Result<ServerConfig, TlsError> {
     let builder = ServerConfig::builder();
-    let builder = match client_ca {
-        Some(ca) => {
-            let mut roots = RootCertStore::empty();
-            roots.add(CertificateDer::from(ca.to_vec()))?;
-            builder.with_client_cert_verifier(
-                WebPkiClientVerifier::builder(Arc::new(roots))
-                    .allow_unauthenticated()
-                    .build()?,
-            )
+    let builder = if client_cas.is_empty() {
+        builder.with_no_client_auth()
+    } else {
+        let mut roots = RootCertStore::empty();
+        for ca in client_cas {
+            roots.add(CertificateDer::from(ca.clone()))?;
         }
-        None => builder.with_no_client_auth(),
+        builder.with_client_cert_verifier(
+            WebPkiClientVerifier::builder(Arc::new(roots))
+                .allow_unauthenticated()
+                .build()?,
+        )
     };
     let mut config = builder.with_cert_resolver(certs);
     config.alpn_protocols = vec![b"h2".to_vec()];

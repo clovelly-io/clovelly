@@ -92,6 +92,8 @@ export class NoSuchCell extends ClovellyError {}
 export class NoCellCanHold extends ClovellyError {}
 /** NO_CELL_READY: a cell was booted but none became ready before the deadline. */
 export class NoCellReady extends ClovellyError {}
+/** The environment is at a quota (cells, sandboxes or volume bytes); never queued. */
+export class QuotaExceeded extends ClovellyError {}
 /** CELL_CREATE_FAILED: the Compute API refused to create a cell. */
 export class CellCreateFailed extends ClovellyError {}
 
@@ -188,6 +190,7 @@ const BY_REASON = {
   NO_SUCH_CELL: NoSuchCell,
   NO_CELL_CAN_HOLD: NoCellCanHold,
   NO_CELL_READY: NoCellReady,
+  QUOTA_EXCEEDED: QuotaExceeded,
   CELL_CREATE_FAILED: CellCreateFailed,
   STORAGE: StorageUnavailable,
   NO_SUCH_TEMPLATE: NoSuchTemplate,

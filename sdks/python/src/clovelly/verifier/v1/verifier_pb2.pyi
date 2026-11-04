@@ -71,10 +71,12 @@ class GetCARequest(_message.Message):
     def __init__(self, env_id: _Optional[str] = ...) -> None: ...
 
 class GetCAResponse(_message.Message):
-    __slots__ = ("ca_cert",)
+    __slots__ = ("ca_cert", "previous_ca_certs")
     CA_CERT_FIELD_NUMBER: _ClassVar[int]
+    PREVIOUS_CA_CERTS_FIELD_NUMBER: _ClassVar[int]
     ca_cert: bytes
-    def __init__(self, ca_cert: _Optional[bytes] = ...) -> None: ...
+    previous_ca_certs: _containers.RepeatedScalarFieldContainer[bytes]
+    def __init__(self, ca_cert: _Optional[bytes] = ..., previous_ca_certs: _Optional[_Iterable[bytes]] = ...) -> None: ...
 
 class GetPolicyRequest(_message.Message):
     __slots__ = ("env_id", "subenv_id")

@@ -100,6 +100,13 @@ class Errors(Fixture):
         self.assertEqual(caught.exception.code, "INVALID_ARGUMENT")
         self.assertEqual(self.cell.calls, [])
 
+    def test_quota_refusal_is_typed_and_not_placed_again(self) -> None:
+        self.control.refuse_place = (grpc.StatusCode.RESOURCE_EXHAUSTED, "QUOTA_EXCEEDED")
+        with self.assertRaises(clovelly.QuotaExceeded) as caught:
+            self.env.sandbox("a")
+        self.assertEqual(caught.exception.reason, "QUOTA_EXCEEDED")
+        self.assertEqual(len(self.control.places), 1, "a quota is not a capacity problem: no retry")
+
     def test_capacity_refusal_places_again_avoiding_that_cell(self) -> None:
         self.cells[0].refuse_create = (grpc.StatusCode.RESOURCE_EXHAUSTED, "CAPACITY")
         sb = self.env.sandbox("a")

@@ -8,8 +8,13 @@ pub struct PutEnvironmentRequest {
     #[prost(string, tag = "2")]
     pub verifier_url: ::prost::alloc::string::String,
     /// The environment CA certificate (PEM, public), for the control plane's Drain calls.
+    /// Several certificates while the CA rotates (docs/key-rotation.md).
     #[prost(string, tag = "3")]
     pub ca_pem: ::prost::alloc::string::String,
+    /// Updates an existing environment and leaves its token as it is; the response's token
+    /// is then empty.
+    #[prost(bool, tag = "4")]
+    pub keep_token: bool,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct PutEnvironmentResponse {
@@ -384,6 +389,150 @@ pub struct ReleaseVolumeRequest {
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ReleaseVolumeResponse {}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct DeleteVolumeRequest {
+    #[prost(string, tag = "1")]
+    pub env_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub subenv_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub name: ::prost::alloc::string::String,
+}
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct DeletedObjects {
+    #[prost(uint64, tag = "1")]
+    pub objects: u64,
+    #[prost(uint64, tag = "2")]
+    pub bytes: u64,
+}
+/// Zero in a limit means no limit.
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct Quota {
+    #[prost(string, tag = "1")]
+    pub env_id: ::prost::alloc::string::String,
+    /// Live cells of the environment, not counting cells draining or being deleted.
+    #[prost(uint32, tag = "2")]
+    pub max_cells: u32,
+    /// Sandboxes placed and not yet ended.
+    #[prost(uint32, tag = "3")]
+    pub max_sandboxes: u32,
+    /// Volume ciphertext in the store, checked when a volume is mounted.
+    #[prost(uint64, tag = "4")]
+    pub max_volume_bytes: u64,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct GetQuotaRequest {
+    #[prost(string, tag = "1")]
+    pub env_id: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct QuotaStatus {
+    #[prost(message, optional, tag = "1")]
+    pub quota: ::core::option::Option<Quota>,
+    #[prost(uint32, tag = "2")]
+    pub cells: u32,
+    #[prost(uint32, tag = "3")]
+    pub sandboxes: u32,
+    #[prost(uint64, tag = "4")]
+    pub volume_bytes: u64,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct DrainZoneRequest {
+    #[prost(string, tag = "1")]
+    pub zone: ::prost::alloc::string::String,
+}
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct DrainZoneResponse {
+    /// The zone's cells that will drain, and the replacements started elsewhere.
+    #[prost(uint32, tag = "1")]
+    pub cells: u32,
+    #[prost(uint32, tag = "2")]
+    pub replacements: u32,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct ExportBillingRequest {
+    #[prost(string, tag = "1")]
+    pub env_id: ::prost::alloc::string::String,
+    /// "YYYY-MM", UTC.
+    #[prost(string, tag = "2")]
+    pub month: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct BillingExport {
+    #[prost(string, tag = "1")]
+    pub env_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub month: ::prost::alloc::string::String,
+    /// Every cell billed in the month, clipped to it.
+    #[prost(message, repeated, tag = "3")]
+    pub cells: ::prost::alloc::vec::Vec<BilledCell>,
+    #[prost(message, repeated, tag = "4")]
+    pub subenvs: ::prost::alloc::vec::Vec<BilledSubenv>,
+    #[prost(uint64, tag = "5")]
+    pub billed_ms: u64,
+    /// The sum of subenvs' cents.
+    #[prost(uint64, tag = "6")]
+    pub total_cents: u64,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct BilledCell {
+    #[prost(string, tag = "1")]
+    pub subenv_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub cell_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub machine_type: ::prost::alloc::string::String,
+    #[prost(string, tag = "4")]
+    pub zone: ::prost::alloc::string::String,
+    #[prost(uint64, tag = "5")]
+    pub create_called_unix_ms: u64,
+    /// 0: the cell still exists; it is billed to the end of the month or to now.
+    #[prost(uint64, tag = "6")]
+    pub deleted_unix_ms: u64,
+    #[prost(uint64, tag = "7")]
+    pub billed_ms: u64,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct BilledSubenv {
+    #[prost(string, tag = "1")]
+    pub subenv_id: ::prost::alloc::string::String,
+    #[prost(uint64, tag = "2")]
+    pub billed_ms: u64,
+    /// billed_ms at the control plane's price per cell-hour, rounded half up once per
+    /// sub-environment.
+    #[prost(uint64, tag = "3")]
+    pub cents: u64,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct OffboardRequest {
+    #[prost(string, tag = "1")]
+    pub env_id: ::prost::alloc::string::String,
+}
+/// What was deleted; the operator signs it as the deletion receipt.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct OffboardResponse {
+    #[prost(string, tag = "1")]
+    pub env_id: ::prost::alloc::string::String,
+    #[prost(uint64, tag = "2")]
+    pub started_unix_ms: u64,
+    #[prost(uint64, tag = "3")]
+    pub finished_unix_ms: u64,
+    #[prost(uint32, tag = "4")]
+    pub cells_deleted: u32,
+    #[prost(uint64, tag = "5")]
+    pub objects_deleted: u64,
+    #[prost(uint64, tag = "6")]
+    pub bytes_deleted: u64,
+    /// SHA-256 (hex) over the deleted object names, sorted, each followed by a newline.
+    #[prost(string, tag = "7")]
+    pub object_names_sha256: ::prost::alloc::string::String,
+    /// The ciphertext prefix, listed after the deletion: the count must be zero.
+    #[prost(uint64, tag = "8")]
+    pub objects_remaining: u64,
+    /// Rows deleted from the control plane's database, by table.
+    #[prost(map = "string, uint64", tag = "9")]
+    pub rows_deleted: ::std::collections::HashMap<::prost::alloc::string::String, u64>,
+}
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum ErrorReason {
@@ -414,6 +563,9 @@ pub enum ErrorReason {
     NoSuchTemplate = 14,
     /// FAILED_PRECONDITION: another sandbox holds the volume's lease.
     VolumeBusy = 15,
+    /// RESOURCE_EXHAUSTED: the environment is at a quota (cells, sandboxes or volume
+    /// bytes). Refused at once, never queued; the message names the quota.
+    QuotaExceeded = 16,
 }
 impl ErrorReason {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -438,6 +590,7 @@ impl ErrorReason {
             Self::Storage => "STORAGE",
             Self::NoSuchTemplate => "NO_SUCH_TEMPLATE",
             Self::VolumeBusy => "VOLUME_BUSY",
+            Self::QuotaExceeded => "QUOTA_EXCEEDED",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -459,6 +612,7 @@ impl ErrorReason {
             "STORAGE" => Some(Self::Storage),
             "NO_SUCH_TEMPLATE" => Some(Self::NoSuchTemplate),
             "VOLUME_BUSY" => Some(Self::VolumeBusy),
+            "QUOTA_EXCEEDED" => Some(Self::QuotaExceeded),
             _ => None,
         }
     }
@@ -610,7 +764,9 @@ pub mod control_client {
             );
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(GrpcMethod::new("clovelly.control.v1.Control", "PutEnvironment"));
+                .insert(
+                    GrpcMethod::new("clovelly.control.v1.Control", "PutEnvironment"),
+                );
             self.inner.unary(req, path, codec).await
         }
         /// Creates or updates a sub-environment and its sandbox limits.
@@ -632,7 +788,9 @@ pub mod control_client {
             );
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(GrpcMethod::new("clovelly.control.v1.Control", "PutSubenvironment"));
+                .insert(
+                    GrpcMethod::new("clovelly.control.v1.Control", "PutSubenvironment"),
+                );
             self.inner.unary(req, path, codec).await
         }
         /// Creates or updates a sub-environment's pool. Machine type, release and test
@@ -746,7 +904,9 @@ pub mod control_client {
             );
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(GrpcMethod::new("clovelly.control.v1.Control", "ReleaseSandbox"));
+                .insert(
+                    GrpcMethod::new("clovelly.control.v1.Control", "ReleaseSandbox"),
+                );
             self.inner.unary(req, path, codec).await
         }
         /// Operator: asks a cell to drain (mutual TLS to the cell's Drain).
@@ -873,6 +1033,198 @@ pub mod control_client {
                 .insert(GrpcMethod::new("clovelly.control.v1.Control", "GetTemplate"));
             self.inner.unary(req, path, codec).await
         }
+        /// Deletes a template's name and, if no other name uses it, its ciphertext. Ciphertext
+        /// is kept until its customer deletes it or leaves (docs/retention.md).
+        pub async fn delete_template(
+            &mut self,
+            request: impl tonic::IntoRequest<super::GetTemplateRequest>,
+        ) -> std::result::Result<tonic::Response<super::DeletedObjects>, tonic::Status> {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/clovelly.control.v1.Control/DeleteTemplate",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(
+                    GrpcMethod::new("clovelly.control.v1.Control", "DeleteTemplate"),
+                );
+            self.inner.unary(req, path, codec).await
+        }
+        /// Deletes a volume's ciphertext; refused (VOLUME_BUSY) while a sandbox holds its lease.
+        pub async fn delete_volume(
+            &mut self,
+            request: impl tonic::IntoRequest<super::DeleteVolumeRequest>,
+        ) -> std::result::Result<tonic::Response<super::DeletedObjects>, tonic::Status> {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/clovelly.control.v1.Control/DeleteVolume",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("clovelly.control.v1.Control", "DeleteVolume"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Operator: sets an environment's quotas.
+        pub async fn put_quota(
+            &mut self,
+            request: impl tonic::IntoRequest<super::Quota>,
+        ) -> std::result::Result<tonic::Response<super::Quota>, tonic::Status> {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/clovelly.control.v1.Control/PutQuota",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("clovelly.control.v1.Control", "PutQuota"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// An environment's quotas and what it uses now.
+        pub async fn get_quota(
+            &mut self,
+            request: impl tonic::IntoRequest<super::GetQuotaRequest>,
+        ) -> std::result::Result<tonic::Response<super::QuotaStatus>, tonic::Status> {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/clovelly.control.v1.Control/GetQuota",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("clovelly.control.v1.Control", "GetQuota"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Operator: a planned drain of one zone. No new cell or placement goes there from now
+        /// on; replacements boot in the pools' other zones, then the zone's cells drain.
+        pub async fn drain_zone(
+            &mut self,
+            request: impl tonic::IntoRequest<super::DrainZoneRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::DrainZoneResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/clovelly.control.v1.Control/DrainZone",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("clovelly.control.v1.Control", "DrainZone"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Operator: puts a drained or lost zone back in service.
+        pub async fn restore_zone(
+            &mut self,
+            request: impl tonic::IntoRequest<super::DrainZoneRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::DrainZoneResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/clovelly.control.v1.Control/RestoreZone",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("clovelly.control.v1.Control", "RestoreZone"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// One calendar month's billing for an environment, per cell and per sub-environment.
+        pub async fn export_billing(
+            &mut self,
+            request: impl tonic::IntoRequest<super::ExportBillingRequest>,
+        ) -> std::result::Result<tonic::Response<super::BillingExport>, tonic::Status> {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/clovelly.control.v1.Control/ExportBilling",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("clovelly.control.v1.Control", "ExportBilling"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Operator: a customer leaves. Refuses new work, recycles its cells, deletes all of its
+        /// ciphertext and every record of it here. Returns what went, for the deletion receipt.
+        pub async fn offboard_environment(
+            &mut self,
+            request: impl tonic::IntoRequest<super::OffboardRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::OffboardResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/clovelly.control.v1.Control/OffboardEnvironment",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(
+                    GrpcMethod::new("clovelly.control.v1.Control", "OffboardEnvironment"),
+                );
+            self.inner.unary(req, path, codec).await
+        }
     }
 }
 /// Generated server implementations.
@@ -968,6 +1320,58 @@ pub mod control_server {
             &self,
             request: tonic::Request<super::GetTemplateRequest>,
         ) -> std::result::Result<tonic::Response<super::TemplateInfo>, tonic::Status>;
+        /// Deletes a template's name and, if no other name uses it, its ciphertext. Ciphertext
+        /// is kept until its customer deletes it or leaves (docs/retention.md).
+        async fn delete_template(
+            &self,
+            request: tonic::Request<super::GetTemplateRequest>,
+        ) -> std::result::Result<tonic::Response<super::DeletedObjects>, tonic::Status>;
+        /// Deletes a volume's ciphertext; refused (VOLUME_BUSY) while a sandbox holds its lease.
+        async fn delete_volume(
+            &self,
+            request: tonic::Request<super::DeleteVolumeRequest>,
+        ) -> std::result::Result<tonic::Response<super::DeletedObjects>, tonic::Status>;
+        /// Operator: sets an environment's quotas.
+        async fn put_quota(
+            &self,
+            request: tonic::Request<super::Quota>,
+        ) -> std::result::Result<tonic::Response<super::Quota>, tonic::Status>;
+        /// An environment's quotas and what it uses now.
+        async fn get_quota(
+            &self,
+            request: tonic::Request<super::GetQuotaRequest>,
+        ) -> std::result::Result<tonic::Response<super::QuotaStatus>, tonic::Status>;
+        /// Operator: a planned drain of one zone. No new cell or placement goes there from now
+        /// on; replacements boot in the pools' other zones, then the zone's cells drain.
+        async fn drain_zone(
+            &self,
+            request: tonic::Request<super::DrainZoneRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::DrainZoneResponse>,
+            tonic::Status,
+        >;
+        /// Operator: puts a drained or lost zone back in service.
+        async fn restore_zone(
+            &self,
+            request: tonic::Request<super::DrainZoneRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::DrainZoneResponse>,
+            tonic::Status,
+        >;
+        /// One calendar month's billing for an environment, per cell and per sub-environment.
+        async fn export_billing(
+            &self,
+            request: tonic::Request<super::ExportBillingRequest>,
+        ) -> std::result::Result<tonic::Response<super::BillingExport>, tonic::Status>;
+        /// Operator: a customer leaves. Refuses new work, recycles its cells, deletes all of its
+        /// ciphertext and every record of it here. Returns what went, for the deletion receipt.
+        async fn offboard_environment(
+            &self,
+            request: tonic::Request<super::OffboardRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::OffboardResponse>,
+            tonic::Status,
+        >;
     }
     #[derive(Debug)]
     pub struct ControlServer<T> {
@@ -1577,6 +1981,356 @@ pub mod control_server {
                     };
                     Box::pin(fut)
                 }
+                "/clovelly.control.v1.Control/DeleteTemplate" => {
+                    #[allow(non_camel_case_types)]
+                    struct DeleteTemplateSvc<T: Control>(pub Arc<T>);
+                    impl<
+                        T: Control,
+                    > tonic::server::UnaryService<super::GetTemplateRequest>
+                    for DeleteTemplateSvc<T> {
+                        type Response = super::DeletedObjects;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::GetTemplateRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Control>::delete_template(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = DeleteTemplateSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/clovelly.control.v1.Control/DeleteVolume" => {
+                    #[allow(non_camel_case_types)]
+                    struct DeleteVolumeSvc<T: Control>(pub Arc<T>);
+                    impl<
+                        T: Control,
+                    > tonic::server::UnaryService<super::DeleteVolumeRequest>
+                    for DeleteVolumeSvc<T> {
+                        type Response = super::DeletedObjects;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::DeleteVolumeRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Control>::delete_volume(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = DeleteVolumeSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/clovelly.control.v1.Control/PutQuota" => {
+                    #[allow(non_camel_case_types)]
+                    struct PutQuotaSvc<T: Control>(pub Arc<T>);
+                    impl<T: Control> tonic::server::UnaryService<super::Quota>
+                    for PutQuotaSvc<T> {
+                        type Response = super::Quota;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::Quota>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Control>::put_quota(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = PutQuotaSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/clovelly.control.v1.Control/GetQuota" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetQuotaSvc<T: Control>(pub Arc<T>);
+                    impl<T: Control> tonic::server::UnaryService<super::GetQuotaRequest>
+                    for GetQuotaSvc<T> {
+                        type Response = super::QuotaStatus;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::GetQuotaRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Control>::get_quota(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetQuotaSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/clovelly.control.v1.Control/DrainZone" => {
+                    #[allow(non_camel_case_types)]
+                    struct DrainZoneSvc<T: Control>(pub Arc<T>);
+                    impl<T: Control> tonic::server::UnaryService<super::DrainZoneRequest>
+                    for DrainZoneSvc<T> {
+                        type Response = super::DrainZoneResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::DrainZoneRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Control>::drain_zone(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = DrainZoneSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/clovelly.control.v1.Control/RestoreZone" => {
+                    #[allow(non_camel_case_types)]
+                    struct RestoreZoneSvc<T: Control>(pub Arc<T>);
+                    impl<T: Control> tonic::server::UnaryService<super::DrainZoneRequest>
+                    for RestoreZoneSvc<T> {
+                        type Response = super::DrainZoneResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::DrainZoneRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Control>::restore_zone(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = RestoreZoneSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/clovelly.control.v1.Control/ExportBilling" => {
+                    #[allow(non_camel_case_types)]
+                    struct ExportBillingSvc<T: Control>(pub Arc<T>);
+                    impl<
+                        T: Control,
+                    > tonic::server::UnaryService<super::ExportBillingRequest>
+                    for ExportBillingSvc<T> {
+                        type Response = super::BillingExport;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::ExportBillingRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Control>::export_billing(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = ExportBillingSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/clovelly.control.v1.Control/OffboardEnvironment" => {
+                    #[allow(non_camel_case_types)]
+                    struct OffboardEnvironmentSvc<T: Control>(pub Arc<T>);
+                    impl<T: Control> tonic::server::UnaryService<super::OffboardRequest>
+                    for OffboardEnvironmentSvc<T> {
+                        type Response = super::OffboardResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::OffboardRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Control>::offboard_environment(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = OffboardEnvironmentSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
                 _ => {
                     Box::pin(async move {
                         let mut response = http::Response::new(
@@ -1753,7 +2507,10 @@ pub mod cell_channel_client {
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(
-                    GrpcMethod::new("clovelly.control.v1.CellChannel", "FetchCredentials"),
+                    GrpcMethod::new(
+                        "clovelly.control.v1.CellChannel",
+                        "FetchCredentials",
+                    ),
                 );
             self.inner.unary(req, path, codec).await
         }
@@ -1777,7 +2534,9 @@ pub mod cell_channel_client {
             );
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(GrpcMethod::new("clovelly.control.v1.CellChannel", "GetStorage"));
+                .insert(
+                    GrpcMethod::new("clovelly.control.v1.CellChannel", "GetStorage"),
+                );
             self.inner.unary(req, path, codec).await
         }
         /// Takes a volume's single-mounter lease for one sandbox: refused (VOLUME_BUSY) while
@@ -1803,7 +2562,9 @@ pub mod cell_channel_client {
             );
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(GrpcMethod::new("clovelly.control.v1.CellChannel", "AcquireVolume"));
+                .insert(
+                    GrpcMethod::new("clovelly.control.v1.CellChannel", "AcquireVolume"),
+                );
             self.inner.unary(req, path, codec).await
         }
         pub async fn release_volume(
@@ -1827,7 +2588,9 @@ pub mod cell_channel_client {
             );
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(GrpcMethod::new("clovelly.control.v1.CellChannel", "ReleaseVolume"));
+                .insert(
+                    GrpcMethod::new("clovelly.control.v1.CellChannel", "ReleaseVolume"),
+                );
             self.inner.unary(req, path, codec).await
         }
     }

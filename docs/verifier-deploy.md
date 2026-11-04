@@ -64,6 +64,22 @@ Then add the release key you trust:
 jq --rawfile k release-key.pem '.release_keys = [$k]' deploy/out/ENV/config.json > c && mv c deploy/out/ENV/config.json
 ```
 
+To have new releases reach the verifier by themselves, point it at the index of our
+releases:
+
+```bash
+jq '.fragments_url = "https://raw.githubusercontent.com/clovelly-io/clovelly/main/releases/fragments.json"' deploy/out/ENV/config.json > c && mv c deploy/out/ENV/config.json
+```
+
+The verifier fetches it at start-up, before it listens, and every 10 minutes. It trusts
+the file only as far as it can check it: a release applies only with a signature from a
+key in `release_keys` and a Rekor entry that verifies under the public log's key, which
+is built in. Only final releases are in the index, and each is accepted once its notice
+window ends. A verifier that cannot fetch the index, or fetches one that is stale or
+damaged, keeps every release it has already applied. Those are held in memory, so a
+verifier that restarts during an outage has only your signed release policy until a
+fetch succeeds. Alert on `jsonPayload.event="fragments-fetch"`.
+
 To accept a release before its notice window ends (72 hours, 24 for security releases),
 add its id to `pinned_releases`. A release past its `valid_until` is refused even if
 pinned.
@@ -124,7 +140,11 @@ tells it to. Delete the cell afterwards.
 
 ## Updating
 
+Rotating your keys has its own page: [key-rotation.md](key-rotation.md). What to do when you
+leave: [offboarding.md](offboarding.md).
+
 - New release policy: redeploy with the new JWS (step 3).
 - New verifier version: rebuild (step 1) and redeploy (step 3).
 - New sub-environment: run `setup` again with all sub-environments (existing keys and
   DEKs are kept), then redeploy.
+- New release, with `fragments_url` set: nothing to do.

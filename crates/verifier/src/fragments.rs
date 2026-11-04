@@ -115,6 +115,25 @@ pub(crate) mod tests {
     use common::rekor::{InclusionProof, LogEntry, Verification};
     use common::release::Window;
 
+    /// A copy of `releases/fragments.json`, byte for byte as the release pipeline commits
+    /// it and verifiers fetch it.
+    const PUBLISHED_INDEX: &[u8] = include_bytes!("../tests/data/fragments-public.json");
+
+    /// The published index parses, and each bundle passes every check under the release
+    /// key in this repository and the built-in public log key: a verifier given the
+    /// public `fragments_url` and only those applies all of it.
+    #[test]
+    fn the_published_index_verifies_under_our_key_and_the_public_log() {
+        let bundles: Vec<FragmentBundle> = serde_json::from_slice(PUBLISHED_INDEX).unwrap();
+        let us = TrustedKey::from_pem(include_str!("../../../release/release-key.pub")).unwrap();
+        let log = TrustedKey::from_pem(include_str!("../roots/rekor.sigstore.dev.pub")).unwrap();
+        let ids: Vec<String> = bundles
+            .iter()
+            .map(|b| verify(b, std::slice::from_ref(&us), std::slice::from_ref(&log)).unwrap().release.id.to_string())
+            .collect();
+        assert_eq!(ids, ["clovelly-0.3.0", "clovelly-0.3.1"]);
+    }
+
     pub struct Key(EcdsaKeyPair);
 
     impl Key {

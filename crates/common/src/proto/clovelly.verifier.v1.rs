@@ -81,6 +81,10 @@ pub struct GetCaRequest {
 pub struct GetCaResponse {
     #[prost(bytes = "vec", tag = "1")]
     pub ca_cert: ::prost::alloc::vec::Vec<u8>,
+    /// CA certificates ca_cert replaced, while cells may still hold certificates under them
+    /// (docs/key-rotation.md). An SDK's bundle holds these and ca_cert during a rotation.
+    #[prost(bytes = "vec", repeated, tag = "2")]
+    pub previous_ca_certs: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct GetPolicyRequest {
@@ -435,7 +439,9 @@ pub mod verifier_client {
             );
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(GrpcMethod::new("clovelly.verifier.v1.Verifier", "SealCredential"));
+                .insert(
+                    GrpcMethod::new("clovelly.verifier.v1.Verifier", "SealCredential"),
+                );
             self.inner.unary(req, path, codec).await
         }
         /// The customer's SDK only (SDK token, as SealCredential): a fresh 256-bit key for one
@@ -463,7 +469,9 @@ pub mod verifier_client {
             );
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(GrpcMethod::new("clovelly.verifier.v1.Verifier", "SealTemplateKey"));
+                .insert(
+                    GrpcMethod::new("clovelly.verifier.v1.Verifier", "SealTemplateKey"),
+                );
             self.inner.unary(req, path, codec).await
         }
         /// Cells: appends signed receipts to the customer's receipt log, which keeps the
@@ -491,7 +499,9 @@ pub mod verifier_client {
             );
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(GrpcMethod::new("clovelly.verifier.v1.Verifier", "AppendReceipt"));
+                .insert(
+                    GrpcMethod::new("clovelly.verifier.v1.Verifier", "AppendReceipt"),
+                );
             self.inner.unary(req, path, codec).await
         }
         /// The customer's SDK only (SDK token): the log's records.
@@ -516,7 +526,9 @@ pub mod verifier_client {
             );
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(GrpcMethod::new("clovelly.verifier.v1.Verifier", "ListReceipts"));
+                .insert(
+                    GrpcMethod::new("clovelly.verifier.v1.Verifier", "ListReceipts"),
+                );
             self.inner.unary(req, path, codec).await
         }
         /// The customer's SDK only (SDK token): the egress log a sandbox's final receipt
@@ -542,7 +554,9 @@ pub mod verifier_client {
             );
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(GrpcMethod::new("clovelly.verifier.v1.Verifier", "GetEgressLog"));
+                .insert(
+                    GrpcMethod::new("clovelly.verifier.v1.Verifier", "GetEgressLog"),
+                );
             self.inner.unary(req, path, codec).await
         }
     }

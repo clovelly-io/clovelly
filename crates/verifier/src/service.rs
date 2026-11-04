@@ -182,6 +182,7 @@ impl<S: Sources + 'static, K: Kms + 'static> Api for Service<S, K> {
         }
         Ok(Response::new(GetCaResponse {
             ca_cert: self.verifier.ca_der().to_vec(),
+            previous_ca_certs: self.verifier.ca_ders().skip(1).map(<[u8]>::to_vec).collect(),
         }))
     }
 
@@ -249,14 +250,15 @@ impl<S: Sources + 'static, K: Kms + 'static> Api for Service<S, K> {
         &self,
         req: Request<AppendReceiptRequest>,
     ) -> Result<Response<AppendReceiptResponse>, Status> {
-        let (env, ca) = (&self.verifier.config().env, self.verifier.ca_der());
+        let env = &self.verifier.config().env;
+        let cas: Vec<&[u8]> = self.verifier.ca_ders().collect();
         let measurements: MeasurementSet = self.verifier.policy().measurement_set();
         let checked = req
             .into_inner()
             .records
             .into_iter()
             .enumerate()
-            .map(|(i, r)| receipts::check(r, env, ca, &measurements).map_err(|e| (i, e)))
+            .map(|(i, r)| receipts::check(r, env, &cas, &measurements).map_err(|e| (i, e)))
             .collect::<Result<Vec<_>, _>>();
         match checked {
             Ok(records) => {
@@ -514,6 +516,11 @@ mod tests {
         }
 
         pub fn service(ca: &TestCa) -> Service<NoSources, LocalKms> {
+            rotated_service(ca, &[])
+        }
+
+        /// A service whose current CA is `ca` and which `previous` handed over to.
+        pub fn rotated_service(ca: &TestCa, previous: &[&TestCa]) -> Service<NoSources, LocalKms> {
             let subenv = |dek: [u8; 32]| Subenv {
                 wrapped_dek: common::b64::encode(&dek),
                 policy_bundle: "{}".into(),
@@ -525,6 +532,7 @@ mod tests {
                 ca: Ca {
                     kms_key: "ca".into(),
                     cert_pem: ca.pem.clone(),
+                    previous_cert_pem: previous.iter().map(|c| c.pem.clone()).collect(),
                 },
                 dek_kms_key: "dek".into(),
                 release_keys: vec![],
@@ -651,6 +659,31 @@ mod tests {
         assert!(err.message().contains("not signed by the environment CA"), "{}", err.message());
 
         assert_eq!(listed(&svc).await.len(), 1, "nothing from a refused call was kept");
+    }
+
+    /// Criterion 11: after the environment CA rotates, a cell still on its old lease
+    /// signs receipts the verifier accepts and GetCA names both; once the old CA leaves
+    /// the configuration its certificates are refused.
+    #[tokio::test]
+    async fn ca_rotation_keeps_receipts_of_cells_on_the_old_lease() {
+        let (old, new) = (TestCa::new(), TestCa::new());
+        let svc = rotated_service(&new, &[&old]);
+        let id = "0123456789abcdef0123456789abcdef";
+        let (old_key, old_cert) = old.cell();
+        let (new_key, new_cert) = new.cell();
+        for (key, cert, seq) in [(&old_key, &old_cert, 1), (&new_key, &new_cert, 2)] {
+            let r = record(&doc(id, seq, "cell_lost", "eh"), key, cert, None);
+            svc.append_receipt(Request::new(AppendReceiptRequest { records: vec![r] })).await.unwrap();
+        }
+        let got = svc.get_ca(Request::new(GetCaRequest { env_id: "staging".into() })).await.unwrap().into_inner();
+        assert_eq!(common::b64::pem("CERTIFICATE", &got.ca_cert), new.pem);
+        assert_eq!(got.previous_ca_certs.len(), 1);
+        assert_eq!(common::b64::pem("CERTIFICATE", &got.previous_ca_certs[0]), old.pem);
+
+        let retired = service(&new);
+        let r = record(&doc(id, 3, "cell_lost", "eh"), &old_key, &old_cert, None);
+        let err = retired.append_receipt(Request::new(AppendReceiptRequest { records: vec![r] })).await.unwrap_err();
+        assert!(err.message().contains("not signed by the environment CA"), "{}", err.message());
     }
 
     /// Criterion 10: GetEgressLog returns the lines that came with a sandbox's final

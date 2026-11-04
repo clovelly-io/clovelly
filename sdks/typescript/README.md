@@ -274,6 +274,7 @@ Each `ErrorReason` in `cell.proto` and `control.proto` has its own subclass:
 | `NO_CELL_CAN_HOLD` | `NoCellCanHold` |
 | `NO_CELL_READY` | `NoCellReady` |
 | `CELL_CREATE_FAILED` | `CellCreateFailed` |
+| `QUOTA_EXCEEDED` | `QuotaExceeded` |
 | `POLICY_REFUSED` | `PolicyRefused` |
 | `CREDENTIAL_UNAVAILABLE` | `CredentialUnavailable` |
 | `STORAGE` | `StorageUnavailable` |

@@ -97,7 +97,7 @@ impl CaCert {
 pub async fn make_ca(kms: &impl Kms, key: &str, env: &str, now: u64) -> Result<Vec<u8>, X509Error> {
     let spki = SubjectPublicKeyInfoOwned::from_der(&kms.public_key(key).await?)?;
     let ski = key_id(&spki);
-    let name = Name::from_str(&format!("CN=clovelly {env} environment CA,O=clovelly"))?;
+    let name = Name::from_str(&format!("CN=clovelly {env} environment CA{},O=clovelly", generation(key)))?;
     let extensions = vec![
         extension(
             &BasicConstraints {
@@ -120,6 +120,17 @@ pub async fn make_ca(kms: &impl Kms, key: &str, env: &str, now: u64) -> Result<V
         extensions: Some(extensions),
     };
     sign(tbs, kms, key).await
+}
+
+/// What sets a rotated CA's subject apart from its predecessor's, from its KMS key
+/// version: an SDK's bundle holds both during a rotation, and TLS stacks that pick an
+/// issuer by subject alone (OpenSSL, BoringSSL) would try only one of two CAs with the
+/// same subject. Version 1, and a key not named by version, adds nothing.
+fn generation(key: &str) -> String {
+    match key.rsplit_once("/cryptoKeyVersions/") {
+        Some((_, v)) if v != "1" => format!(" v{v}"),
+        _ => String::new(),
+    }
 }
 
 /// What goes into a cell certificate.
@@ -255,6 +266,21 @@ mod tests {
                 cert.signature().raw_bytes(),
             )
             .is_ok()
+    }
+
+    /// A CA made from a later key version has its own subject, so TLS stacks that choose
+    /// an issuer by subject find the right one in a bundle holding both.
+    #[tokio::test]
+    async fn a_rotated_ca_has_its_own_subject() {
+        let (v1, v2) = ("r/cryptoKeyVersions/1", "r/cryptoKeyVersions/2");
+        let kms = LocalKms::generate(&[v1, v2]);
+        let subject = async |key| {
+            let der = make_ca(&kms, key, "acme", 1_793_000_000).await.unwrap();
+            Certificate::from_der(&der).unwrap().tbs_certificate().subject().to_string()
+        };
+        let (a, b) = (subject(v1).await, subject(v2).await);
+        assert_eq!(a, "CN=clovelly acme environment CA,O=clovelly");
+        assert_eq!(b, "CN=clovelly acme environment CA v2,O=clovelly");
     }
 
     #[tokio::test]

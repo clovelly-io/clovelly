@@ -25,6 +25,7 @@ class ErrorReason(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     STORAGE: _ClassVar[ErrorReason]
     NO_SUCH_TEMPLATE: _ClassVar[ErrorReason]
     VOLUME_BUSY: _ClassVar[ErrorReason]
+    QUOTA_EXCEEDED: _ClassVar[ErrorReason]
 
 class DrainState(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
@@ -48,20 +49,23 @@ CELL_CREATE_FAILED: ErrorReason
 STORAGE: ErrorReason
 NO_SUCH_TEMPLATE: ErrorReason
 VOLUME_BUSY: ErrorReason
+QUOTA_EXCEEDED: ErrorReason
 DRAIN_STATE_UNSPECIFIED: DrainState
 SERVING: DrainState
 DRAINING: DrainState
 RECYCLE: DrainState
 
 class PutEnvironmentRequest(_message.Message):
-    __slots__ = ("env_id", "verifier_url", "ca_pem")
+    __slots__ = ("env_id", "verifier_url", "ca_pem", "keep_token")
     ENV_ID_FIELD_NUMBER: _ClassVar[int]
     VERIFIER_URL_FIELD_NUMBER: _ClassVar[int]
     CA_PEM_FIELD_NUMBER: _ClassVar[int]
+    KEEP_TOKEN_FIELD_NUMBER: _ClassVar[int]
     env_id: str
     verifier_url: str
     ca_pem: str
-    def __init__(self, env_id: _Optional[str] = ..., verifier_url: _Optional[str] = ..., ca_pem: _Optional[str] = ...) -> None: ...
+    keep_token: bool
+    def __init__(self, env_id: _Optional[str] = ..., verifier_url: _Optional[str] = ..., ca_pem: _Optional[str] = ..., keep_token: bool = ...) -> None: ...
 
 class PutEnvironmentResponse(_message.Message):
     __slots__ = ("token",)
@@ -437,3 +441,152 @@ class ReleaseVolumeRequest(_message.Message):
 class ReleaseVolumeResponse(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
+
+class DeleteVolumeRequest(_message.Message):
+    __slots__ = ("env_id", "subenv_id", "name")
+    ENV_ID_FIELD_NUMBER: _ClassVar[int]
+    SUBENV_ID_FIELD_NUMBER: _ClassVar[int]
+    NAME_FIELD_NUMBER: _ClassVar[int]
+    env_id: str
+    subenv_id: str
+    name: str
+    def __init__(self, env_id: _Optional[str] = ..., subenv_id: _Optional[str] = ..., name: _Optional[str] = ...) -> None: ...
+
+class DeletedObjects(_message.Message):
+    __slots__ = ("objects", "bytes")
+    OBJECTS_FIELD_NUMBER: _ClassVar[int]
+    BYTES_FIELD_NUMBER: _ClassVar[int]
+    objects: int
+    bytes: int
+    def __init__(self, objects: _Optional[int] = ..., bytes: _Optional[int] = ...) -> None: ...
+
+class Quota(_message.Message):
+    __slots__ = ("env_id", "max_cells", "max_sandboxes", "max_volume_bytes")
+    ENV_ID_FIELD_NUMBER: _ClassVar[int]
+    MAX_CELLS_FIELD_NUMBER: _ClassVar[int]
+    MAX_SANDBOXES_FIELD_NUMBER: _ClassVar[int]
+    MAX_VOLUME_BYTES_FIELD_NUMBER: _ClassVar[int]
+    env_id: str
+    max_cells: int
+    max_sandboxes: int
+    max_volume_bytes: int
+    def __init__(self, env_id: _Optional[str] = ..., max_cells: _Optional[int] = ..., max_sandboxes: _Optional[int] = ..., max_volume_bytes: _Optional[int] = ...) -> None: ...
+
+class GetQuotaRequest(_message.Message):
+    __slots__ = ("env_id",)
+    ENV_ID_FIELD_NUMBER: _ClassVar[int]
+    env_id: str
+    def __init__(self, env_id: _Optional[str] = ...) -> None: ...
+
+class QuotaStatus(_message.Message):
+    __slots__ = ("quota", "cells", "sandboxes", "volume_bytes")
+    QUOTA_FIELD_NUMBER: _ClassVar[int]
+    CELLS_FIELD_NUMBER: _ClassVar[int]
+    SANDBOXES_FIELD_NUMBER: _ClassVar[int]
+    VOLUME_BYTES_FIELD_NUMBER: _ClassVar[int]
+    quota: Quota
+    cells: int
+    sandboxes: int
+    volume_bytes: int
+    def __init__(self, quota: _Optional[_Union[Quota, _Mapping]] = ..., cells: _Optional[int] = ..., sandboxes: _Optional[int] = ..., volume_bytes: _Optional[int] = ...) -> None: ...
+
+class DrainZoneRequest(_message.Message):
+    __slots__ = ("zone",)
+    ZONE_FIELD_NUMBER: _ClassVar[int]
+    zone: str
+    def __init__(self, zone: _Optional[str] = ...) -> None: ...
+
+class DrainZoneResponse(_message.Message):
+    __slots__ = ("cells", "replacements")
+    CELLS_FIELD_NUMBER: _ClassVar[int]
+    REPLACEMENTS_FIELD_NUMBER: _ClassVar[int]
+    cells: int
+    replacements: int
+    def __init__(self, cells: _Optional[int] = ..., replacements: _Optional[int] = ...) -> None: ...
+
+class ExportBillingRequest(_message.Message):
+    __slots__ = ("env_id", "month")
+    ENV_ID_FIELD_NUMBER: _ClassVar[int]
+    MONTH_FIELD_NUMBER: _ClassVar[int]
+    env_id: str
+    month: str
+    def __init__(self, env_id: _Optional[str] = ..., month: _Optional[str] = ...) -> None: ...
+
+class BillingExport(_message.Message):
+    __slots__ = ("env_id", "month", "cells", "subenvs", "billed_ms", "total_cents")
+    ENV_ID_FIELD_NUMBER: _ClassVar[int]
+    MONTH_FIELD_NUMBER: _ClassVar[int]
+    CELLS_FIELD_NUMBER: _ClassVar[int]
+    SUBENVS_FIELD_NUMBER: _ClassVar[int]
+    BILLED_MS_FIELD_NUMBER: _ClassVar[int]
+    TOTAL_CENTS_FIELD_NUMBER: _ClassVar[int]
+    env_id: str
+    month: str
+    cells: _containers.RepeatedCompositeFieldContainer[BilledCell]
+    subenvs: _containers.RepeatedCompositeFieldContainer[BilledSubenv]
+    billed_ms: int
+    total_cents: int
+    def __init__(self, env_id: _Optional[str] = ..., month: _Optional[str] = ..., cells: _Optional[_Iterable[_Union[BilledCell, _Mapping]]] = ..., subenvs: _Optional[_Iterable[_Union[BilledSubenv, _Mapping]]] = ..., billed_ms: _Optional[int] = ..., total_cents: _Optional[int] = ...) -> None: ...
+
+class BilledCell(_message.Message):
+    __slots__ = ("subenv_id", "cell_id", "machine_type", "zone", "create_called_unix_ms", "deleted_unix_ms", "billed_ms")
+    SUBENV_ID_FIELD_NUMBER: _ClassVar[int]
+    CELL_ID_FIELD_NUMBER: _ClassVar[int]
+    MACHINE_TYPE_FIELD_NUMBER: _ClassVar[int]
+    ZONE_FIELD_NUMBER: _ClassVar[int]
+    CREATE_CALLED_UNIX_MS_FIELD_NUMBER: _ClassVar[int]
+    DELETED_UNIX_MS_FIELD_NUMBER: _ClassVar[int]
+    BILLED_MS_FIELD_NUMBER: _ClassVar[int]
+    subenv_id: str
+    cell_id: str
+    machine_type: str
+    zone: str
+    create_called_unix_ms: int
+    deleted_unix_ms: int
+    billed_ms: int
+    def __init__(self, subenv_id: _Optional[str] = ..., cell_id: _Optional[str] = ..., machine_type: _Optional[str] = ..., zone: _Optional[str] = ..., create_called_unix_ms: _Optional[int] = ..., deleted_unix_ms: _Optional[int] = ..., billed_ms: _Optional[int] = ...) -> None: ...
+
+class BilledSubenv(_message.Message):
+    __slots__ = ("subenv_id", "billed_ms", "cents")
+    SUBENV_ID_FIELD_NUMBER: _ClassVar[int]
+    BILLED_MS_FIELD_NUMBER: _ClassVar[int]
+    CENTS_FIELD_NUMBER: _ClassVar[int]
+    subenv_id: str
+    billed_ms: int
+    cents: int
+    def __init__(self, subenv_id: _Optional[str] = ..., billed_ms: _Optional[int] = ..., cents: _Optional[int] = ...) -> None: ...
+
+class OffboardRequest(_message.Message):
+    __slots__ = ("env_id",)
+    ENV_ID_FIELD_NUMBER: _ClassVar[int]
+    env_id: str
+    def __init__(self, env_id: _Optional[str] = ...) -> None: ...
+
+class OffboardResponse(_message.Message):
+    __slots__ = ("env_id", "started_unix_ms", "finished_unix_ms", "cells_deleted", "objects_deleted", "bytes_deleted", "object_names_sha256", "objects_remaining", "rows_deleted")
+    class RowsDeletedEntry(_message.Message):
+        __slots__ = ("key", "value")
+        KEY_FIELD_NUMBER: _ClassVar[int]
+        VALUE_FIELD_NUMBER: _ClassVar[int]
+        key: str
+        value: int
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[int] = ...) -> None: ...
+    ENV_ID_FIELD_NUMBER: _ClassVar[int]
+    STARTED_UNIX_MS_FIELD_NUMBER: _ClassVar[int]
+    FINISHED_UNIX_MS_FIELD_NUMBER: _ClassVar[int]
+    CELLS_DELETED_FIELD_NUMBER: _ClassVar[int]
+    OBJECTS_DELETED_FIELD_NUMBER: _ClassVar[int]
+    BYTES_DELETED_FIELD_NUMBER: _ClassVar[int]
+    OBJECT_NAMES_SHA256_FIELD_NUMBER: _ClassVar[int]
+    OBJECTS_REMAINING_FIELD_NUMBER: _ClassVar[int]
+    ROWS_DELETED_FIELD_NUMBER: _ClassVar[int]
+    env_id: str
+    started_unix_ms: int
+    finished_unix_ms: int
+    cells_deleted: int
+    objects_deleted: int
+    bytes_deleted: int
+    object_names_sha256: str
+    objects_remaining: int
+    rows_deleted: _containers.ScalarMap[str, int]
+    def __init__(self, env_id: _Optional[str] = ..., started_unix_ms: _Optional[int] = ..., finished_unix_ms: _Optional[int] = ..., cells_deleted: _Optional[int] = ..., objects_deleted: _Optional[int] = ..., bytes_deleted: _Optional[int] = ..., object_names_sha256: _Optional[str] = ..., objects_remaining: _Optional[int] = ..., rows_deleted: _Optional[_Mapping[str, int]] = ...) -> None: ...

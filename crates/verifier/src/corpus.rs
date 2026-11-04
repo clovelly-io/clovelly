@@ -239,6 +239,7 @@ impl Bundle {
             ca: Ca {
                 kms_key: "ca".into(),
                 cert_pem: b64::pem("CERTIFICATE", &ca_der),
+                previous_cert_pem: vec![],
             },
             dek_kms_key: "dek".into(),
             release_keys: vec![],

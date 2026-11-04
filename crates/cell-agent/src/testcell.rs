@@ -15,7 +15,8 @@
 //! reports the template cache: overlay roots, their unpacked sizes and how many
 //! sandboxes use each (criterion 1). The driver sets markers and judges the results.
 //! A `CLOVELLY-HEARTBEAT <unix ms> <boot id>` line every second marks when the cell last
-//! ran, and in which boot.
+//! ran, and in which boot. A `CLOVELLY-RSS {agent_kib, proxy_kib, at}` line every minute
+//! gives the two processes' resident memory, for the soak (phase 6 criterion 3).
 
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Command, Stdio};
@@ -47,6 +48,15 @@ pub fn run() -> anyhow::Result<()> {
         loop {
             println!("CLOVELLY-HEARTBEAT {} {boot}", unix_ms());
             std::thread::sleep(std::time::Duration::from_secs(1));
+        }
+    });
+    std::thread::spawn(move || {
+        loop {
+            println!(
+                "CLOVELLY-RSS {}",
+                json!({ "agent_kib": rss_kib(pid), "proxy_kib": proxy_pid().ok().and_then(rss_kib), "at": unix_ms() })
+            );
+            std::thread::sleep(std::time::Duration::from_secs(60));
         }
     });
     let stdout = child.stdout.take().context("child stdout")?;
@@ -156,6 +166,12 @@ fn scans_on_request(pid: u32) {
         line["ms"] = json!(started.elapsed().as_millis() as u64);
         println!("CLOVELLY-SCAN {line}");
     }
+}
+
+/// A process's resident memory in KiB.
+fn rss_kib(pid: u32) -> Option<u64> {
+    let status = std::fs::read_to_string(format!("/proc/{pid}/status")).ok()?;
+    status.lines().find_map(|l| l.strip_prefix("VmRSS:")?.split_whitespace().next()?.parse().ok())
 }
 
 fn unix_ms() -> u64 {
