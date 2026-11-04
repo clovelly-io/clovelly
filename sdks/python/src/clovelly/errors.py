@@ -52,6 +52,7 @@ __all__ = [
     "NoCellReady",
     "CellCreateFailed",
     "QuotaExceeded",
+    "CreditExhausted",
     "CellVerificationError",
     "CellUnavailable",
     "ControlPlaneUnavailable",
@@ -196,6 +197,12 @@ class QuotaExceeded(ClovellyError):
     Refused at once, never queued; the message names the quota."""
 
 
+class CreditExhausted(ClovellyError):
+    """CREDIT_EXHAUSTED: the organization has no credit, no card on file, or a failed charge
+    past its grace, so nothing new is placed. Running sandboxes finish to their timeout; credit
+    added resumes placements within a minute. The message says which (docs/billing.md)."""
+
+
 # Transport.
 
 VerificationKind = Literal["untrusted_certificate", "name_mismatch", "handshake"]
@@ -319,6 +326,9 @@ _CONTROL_REASONS: _ErrorTable = {
     "NO_SUCH_TEMPLATE": NoSuchTemplate,
     "VOLUME_BUSY": VolumeBusy,
     "QUOTA_EXCEEDED": QuotaExceeded,
+    "CREDIT_EXHAUSTED": CreditExhausted,
+    "NOT_READY": ControlPlaneUnavailable,
+    "SIGN_UP_CLOSED": PermissionDenied,
 }
 
 _TRANSPORT_CODES = (grpc.StatusCode.UNAVAILABLE, grpc.StatusCode.DEADLINE_EXCEEDED)

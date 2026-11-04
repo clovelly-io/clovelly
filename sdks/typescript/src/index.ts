@@ -41,6 +41,7 @@ export {
   NoCellCanHold,
   NoCellReady,
   QuotaExceeded,
+  CreditExhausted,
   NoSuchCell,
   NoSuchEnvironment,
   NoSuchPool,

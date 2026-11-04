@@ -2,9 +2,10 @@
 // the SDK asks it where to put a sandbox and talks to the cell for everything else.
 //
 // Control: customer-facing (and operator) gRPC over TLS on the control plane's public
-// address. Every call carries "authorization: Bearer <token>": an environment's token
-// (from PutEnvironment) for that environment's calls, or the operator token for any.
-// Calls marked "operator" refuse environment tokens.
+// address. Every call carries "authorization: Bearer <token>": an API key of that
+// environment (the token PutEnvironment returns is its first), a console token, or the
+// operator token for any. Calls marked "operator" refuse the others. A read_only key
+// reads and does not change anything. See the Account service below.
 //
 // CellChannel: cells report to the control plane over TLS on its internal address; the
 // cell verifies the control plane's certificate against the control-plane CA baked
@@ -113,6 +114,14 @@ enum ErrorReason {
   // RESOURCE_EXHAUSTED: the environment is at a quota (cells, sandboxes or volume
   // bytes). Refused at once, never queued; the message names the quota.
   QUOTA_EXCEEDED = 16;
+  // FAILED_PRECONDITION: the organization has no credit, no card on file or a failed
+  // charge past its grace, so nothing new is placed. Running sandboxes finish; credit
+  // added resumes placements within a minute. The message says which.
+  CREDIT_EXHAUSTED = 17;
+  // UNAVAILABLE: the control plane cannot answer now; try again (never "your key is wrong").
+  NOT_READY = 18;
+  // PERMISSION_DENIED: the sign-up is closed.
+  SIGN_UP_CLOSED = 19;
 }
 
 message PutEnvironmentRequest {
@@ -484,3 +493,357 @@ message OffboardResponse {
   // Rows deleted from the control plane's database, by table.
   map<string, uint64> rows_deleted = 9;
 }
+
+// The customer's account: organizations, members, API keys, the usage and billing tables.
+// Every call carries "authorization: Bearer <token>", one of three. An API key
+// (clv_<env>_<random>), scoped to one environment, role read_write or read_only, does what a
+// member of that role may do in that environment, and never an organization-wide mutation
+// (members, billing, new environments). A console token, signed with a key the control plane
+// holds, is a session token (reads, 8 hours), an action token (one action in one environment,
+// 5 minutes, single use) or an identity token (SignIn and SignUp only, 5 minutes). The operator
+// token does anything.
+//
+// A member's role decides what a console token may do: owner everything; admin every mutation
+// but billing and members; developer keys and pools in the environments it is granted; read_only
+// nothing that changes anything.
+service Account {
+  // Who the caller is: joins any invitation for its verified email and returns its
+  // organization, if it has one. Identity token.
+  rpc SignIn(SignInRequest) returns (SignInResponse);
+  // Creates an organization with the caller as its owner, or puts the caller on the
+  // waitlist. Identity token.
+  rpc SignUp(SignUpRequest) returns (SignUpResponse);
+  rpc GetOrg(GetOrgRequest) returns (Org);
+  rpc DeleteOrg(DeleteOrgRequest) returns (DeleteOrgResponse);
+  rpc ListAudit(ListAuditRequest) returns (ListAuditResponse);
+
+  // Whether a verifier URL answers and serves this environment's CA.
+  rpc CheckVerifier(CheckVerifierRequest) returns (CheckVerifierResponse);
+  // Creates an environment in the caller's organization and issues its first API key.
+  rpc CreateEnvironment(CreateEnvironmentRequest) returns (CreateEnvironmentResponse);
+  rpc ListSubenvironments(EnvRequest) returns (ListSubenvironmentsResponse);
+  rpc ListPlacements(EnvRequest) returns (ListPlacementsResponse);
+  rpc ListCells(EnvRequest) returns (ListCellsResponse);
+  rpc ListTemplates(EnvRequest) returns (ListTemplatesResponse);
+  // A month of cell-minutes per sub-environment and day, and the peak of concurrent
+  // sandboxes per day.
+  rpc GetDailyUsage(GetDailyUsageRequest) returns (DailyUsage);
+
+  rpc ListKeys(EnvRequest) returns (ListKeysResponse);
+  // The plaintext appears in this response once; only its SHA-256 is stored.
+  rpc CreateKey(CreateKeyRequest) returns (CreateKeyResponse);
+  rpc RevokeKey(RevokeKeyRequest) returns (RevokeKeyResponse);
+
+  rpc ListMembers(ListMembersRequest) returns (ListMembersResponse);
+  // Sends an invitation by email; inviting the same email again sends it again.
+  rpc InviteMember(InviteMemberRequest) returns (Invitation);
+  rpc RevokeInvitation(RevokeInvitationRequest) returns (RevokeInvitationResponse);
+  rpc SetMember(SetMemberRequest) returns (Member);
+  rpc RemoveMember(RemoveMemberRequest) returns (RemoveMemberResponse);
+
+  rpc GetBilling(GetBillingRequest) returns (Billing);
+  // Stripe's hosted page that saves a card.
+  rpc CardSetup(CardSetupRequest) returns (HostedPage);
+  // Asks Stripe whether a card is saved; the first one starts billing.
+  rpc ConfirmCard(ConfirmCardRequest) returns (Billing);
+  // Stripe's portal: the card and each charge's receipt.
+  rpc BillingPortal(CardSetupRequest) returns (HostedPage);
+  // Charges the card for credit, at least $10, once per request id.
+  rpc BuyCredit(BuyCreditRequest) returns (Billing);
+  rpc SetAutoRecharge(SetAutoRechargeRequest) returns (Billing);
+  // Stripe's webhook, forwarded unread by the console. Authenticated by its signature.
+  rpc StripeWebhook(StripeWebhookRequest) returns (StripeWebhookResponse);
+}
+
+message SignInRequest {}
+message SignInResponse {
+  // Empty when the caller belongs to no organization yet.
+  string org_id = 1;
+  string role = 2;
+  // "open", "closed" or "waitlisted": what SignUp would do for this caller.
+  string sign_up = 3;
+}
+
+message SignUpRequest {
+  string org_name = 1;
+  // The hex SHA-256 of the docs/terms.md the caller accepted.
+  string terms_sha256 = 2;
+}
+message SignUpResponse {
+  // Empty unless the organization was made.
+  string org_id = 1;
+  bool waitlisted = 2;
+}
+
+message GetOrgRequest {}
+message EnvironmentSummary {
+  string env_id = 1;
+  string verifier_url = 2;
+  uint64 created_unix_ms = 3;
+}
+message Org {
+  string org_id = 1;
+  string name = 2;
+  // The caller's role: owner, admin, developer, read_only; read_write for a key.
+  string role = 3;
+  uint64 created_unix_ms = 4;
+  repeated EnvironmentSummary environments = 5;
+  // The environments a developer may change; empty for every other role.
+  repeated string granted_envs = 6;
+  bool card_on_file = 7;
+  // Placements are refused now, and why: "no_card", "credit_exhausted", "charge_failed";
+  // empty when they are not.
+  string paused = 8;
+}
+
+message DeleteOrgRequest {}
+message DeleteOrgResponse {}
+
+message ListAuditRequest {
+  uint32 limit = 1;
+}
+message AuditEvent {
+  uint64 at_unix_ms = 1;
+  string actor = 2;
+  string action = 3;
+  string target = 4;
+  string detail_json = 5;
+}
+message ListAuditResponse {
+  repeated AuditEvent events = 1;
+}
+
+message CheckVerifierRequest {
+  string verifier_url = 1;
+  string env_id = 2;
+}
+message CheckVerifierResponse {
+  bool ok = 1;
+  // For people: what failed.
+  string problem = 2;
+  // The environment CA the verifier serves.
+  string ca_pem = 3;
+}
+
+message CreateEnvironmentRequest {
+  // A DNS label; ids are global.
+  string env_id = 1;
+  string verifier_url = 2;
+}
+message CreateEnvironmentResponse {
+  string env_id = 1;
+  ApiKey key = 2;
+  string key_plaintext = 3;
+}
+
+message EnvRequest {
+  string env_id = 1;
+}
+
+message SubenvironmentRow {
+  Subenvironment subenv = 1;
+  // Unset until the sub-environment has a pool.
+  Pool pool = 2;
+}
+message ListSubenvironmentsResponse {
+  repeated SubenvironmentRow subenvs = 1;
+}
+
+message PlacementRow {
+  string sandbox_id = 1;
+  string subenv_id = 2;
+  string cell_id = 3;
+  Resources size = 4;
+  uint64 placed_unix_ms = 5;
+  uint64 expires_unix_ms = 6;
+  // 0 while running.
+  uint64 released_unix_ms = 7;
+  bool cold = 8;
+}
+message ListPlacementsResponse {
+  // Running first, then those released in the last 24 hours.
+  repeated PlacementRow placements = 1;
+}
+
+// A cell and what it reports: nothing outside the fixed telemetry set.
+message CellRow {
+  string cell_id = 1;
+  string subenv_id = 2;
+  string state = 3;
+  string zone = 4;
+  string release_id = 5;
+  uint32 sandbox_count = 6;
+  uint32 cpu_in_use_millis = 7;
+  uint64 memory_in_use_bytes = 8;
+  uint64 lease_expiry_unix = 9;
+  string drain_state = 10;
+  uint64 reported_unix_ms = 11;
+}
+message ListCellsResponse {
+  repeated CellRow cells = 1;
+}
+
+message TemplateRow {
+  string subenv_id = 1;
+  TemplateInfo template = 2;
+  // 0 for a template uploaded before this was recorded.
+  uint64 uploaded_unix_ms = 3;
+}
+message ListTemplatesResponse {
+  repeated TemplateRow templates = 1;
+}
+
+message GetDailyUsageRequest {
+  string env_id = 1;
+  // YYYY-MM.
+  string month = 2;
+}
+message DailyUsageRow {
+  // YYYY-MM-DD, UTC.
+  string day = 1;
+  string subenv_id = 2;
+  double cell_minutes = 3;
+}
+message DailySandboxes {
+  string day = 1;
+  uint32 peak_concurrent = 2;
+}
+message DailyUsage {
+  repeated DailyUsageRow rows = 1;
+  repeated DailySandboxes sandboxes = 2;
+  // What the month's export bills, to the cent.
+  uint64 total_cents = 3;
+}
+
+message ApiKey {
+  string key_id = 1;
+  string env_id = 2;
+  string name = 3;
+  // read_write or read_only.
+  string role = 4;
+  // The first characters of the key, to recognise it by.
+  string prefix = 5;
+  string created_by = 6;
+  uint64 created_unix_ms = 7;
+  uint64 revoked_unix_ms = 8;
+  // Coarse: batched every few minutes.
+  uint64 last_used_unix_ms = 9;
+}
+message ListKeysResponse {
+  repeated ApiKey keys = 1;
+}
+message CreateKeyRequest {
+  string env_id = 1;
+  string name = 2;
+  string role = 3;
+}
+message CreateKeyResponse {
+  ApiKey key = 1;
+  string plaintext = 2;
+}
+message RevokeKeyRequest {
+  string env_id = 1;
+  string key_id = 2;
+}
+message RevokeKeyResponse {}
+
+message Member {
+  string user_id = 1;
+  string email = 2;
+  string role = 3;
+  repeated string granted_envs = 4;
+  uint64 joined_unix_ms = 5;
+}
+message Invitation {
+  string invitation_id = 1;
+  string email = 2;
+  string role = 3;
+  repeated string granted_envs = 4;
+  uint64 sent_unix_ms = 5;
+}
+message ListMembersRequest {}
+message ListMembersResponse {
+  repeated Member members = 1;
+  repeated Invitation invitations = 2;
+}
+message InviteMemberRequest {
+  string email = 1;
+  string role = 2;
+  repeated string granted_envs = 3;
+}
+message RevokeInvitationRequest {
+  string invitation_id = 1;
+}
+message RevokeInvitationResponse {}
+message SetMemberRequest {
+  string user_id = 1;
+  string role = 2;
+  repeated string granted_envs = 3;
+}
+message RemoveMemberRequest {
+  string user_id = 1;
+}
+message RemoveMemberResponse {}
+
+message CreditGrant {
+  // period, bought or operator.
+  string kind = 1;
+  int64 amount_cents = 2;
+  int64 left_cents = 3;
+  uint64 granted_unix_ms = 4;
+  uint64 expires_unix_ms = 5;
+}
+message Charge {
+  // fee, top_up or recharge.
+  string kind = 1;
+  int64 amount_cents = 2;
+  // pending, open, paid or failed.
+  string status = 3;
+  // Stripe's page to pay it; empty once paid.
+  string pay_url = 4;
+  uint64 created_unix_ms = 5;
+  uint64 failed_unix_ms = 6;
+  uint64 paid_unix_ms = 7;
+}
+message Billing {
+  // Below zero: owed, taken off the next credit.
+  int64 balance_cents = 1;
+  uint64 balance_unix_ms = 2;
+  repeated CreditGrant credits = 3;
+  repeated Charge charges = 4;
+  bool card_on_file = 5;
+  string card_summary = 6;
+  // 0 before the card goes on file.
+  uint64 period_start_unix_ms = 7;
+  uint64 period_end_unix_ms = 8;
+  int64 environment_fee_cents = 9;
+  int64 low_balance_cents = 10;
+  // 0: auto-recharge is off.
+  int64 recharge_cents = 11;
+  // As in Org.paused.
+  string paused = 12;
+}
+message GetBillingRequest {}
+message CardSetupRequest {
+  // Where Stripe sends the customer back to.
+  string return_url = 1;
+}
+message HostedPage {
+  string url = 1;
+}
+message ConfirmCardRequest {}
+message BuyCreditRequest {
+  int64 cents = 1;
+  // Once per id; the same id with another amount is refused.
+  string request_id = 2;
+}
+message SetAutoRechargeRequest {
+  int64 low_balance_cents = 1;
+  // 0 turns it off; otherwise at least $10 and at least the low-balance level.
+  int64 recharge_cents = 2;
+}
+message StripeWebhookRequest {
+  bytes payload = 1;
+  string signature = 2;
+}
+message StripeWebhookResponse {}

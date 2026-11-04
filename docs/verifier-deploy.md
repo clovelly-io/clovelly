@@ -29,9 +29,10 @@ project in under an hour. What it defends against, and what it does not, is in
   toolchain (`rustup`; the repository pins the version) for the operator commands.
 - Nix, or Docker to run Nix in a container (`release/nix.sh` does this), to build the
   verifier reproducibly.
-- From us: the release public key you will trust (`PUBLIC KEY` PEM) and the current
-  signed release policy (a JWS file). Check both against the published copies:
-  `release/release-key.pub` in this repository is our release key.
+- From us: the release public key you will trust, `release/release-key.pub` in this
+  repository, and the current signed release policy (a JWS file), at
+  `https://app.clovelly.io/release-policy.jws`. The verifier checks the policy's signature
+  against the key, so it does not matter where the file came from.
 
 ## 1. Build the verifier image (10–20 minutes the first time)
 
@@ -61,7 +62,7 @@ and nothing at project level.
 Then add the release key you trust:
 
 ```bash
-jq --rawfile k release-key.pem '.release_keys = [$k]' deploy/out/ENV/config.json > c && mv c deploy/out/ENV/config.json
+jq --rawfile k release/release-key.pub '.release_keys = [$k]' deploy/out/ENV/config.json > c && mv c deploy/out/ENV/config.json
 ```
 
 To have new releases reach the verifier by themselves, point it at the index of our
@@ -87,6 +88,7 @@ pinned.
 ## 3. Deploy (5 minutes)
 
 ```bash
+curl -fsS https://app.clovelly.io/release-policy.jws -o release-policy.jws
 deploy/verifier.sh deploy PROJECT REGION ENV verifier build/verifier-image/*.tar.gz release-policy.jws
 ```
 
@@ -102,8 +104,8 @@ its URL. Settings, and why:
 
 ## 4. Hand over (5 minutes)
 
-- Give the URL, your environment id and your sub-environment ids to the control plane,
-  which passes them to cells as instance metadata (`clovelly-verifier`, `clovelly-env`,
+- Paste the URL into the console's onboarding, with your environment id. Your sub-environment
+  ids go on its Settings tab. The control plane passes them to cells as instance metadata (`clovelly-verifier`, `clovelly-env`,
   `clovelly-subenv`). Metadata is untrusted: a wrong URL only means no unlock.
 - Give `deploy/out/ENV/ca.pem` (or `GetCA`) to your SDK configuration. The SDK refuses
   any cell whose certificate does not chain to it.

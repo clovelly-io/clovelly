@@ -8,6 +8,7 @@ import * as grpc from "@grpc/grpc-js";
 import {
   AbovePolicyMaximum,
   QuotaExceeded,
+  CreditExhausted,
   CapacityError,
   CellVerificationError,
   Environment,
@@ -148,6 +149,15 @@ describe("sandboxes", () => {
     await assert.rejects(environment().sandbox("a"), (error: unknown) => {
       assert.ok(error instanceof QuotaExceeded, String(error));
       assert.equal(error.reason, "QUOTA_EXCEEDED");
+      return true;
+    });
+  });
+
+  it("raises CREDIT_EXHAUSTED as CreditExhausted and does not place again", async () => {
+    control.refusePlace = refusal("CREDIT_EXHAUSTED", grpc.status.FAILED_PRECONDITION);
+    await assert.rejects(environment().sandbox("a"), (error: unknown) => {
+      assert.ok(error instanceof CreditExhausted, String(error));
+      assert.equal(error.reason, "CREDIT_EXHAUSTED");
       return true;
     });
   });

@@ -22,6 +22,7 @@ tie that hash to code you can read.
 | `crates/receipt-tool` | `clovelly-receipt`: checks a sandbox receipt |
 | `sdks/`, `proto/` | The Python (`clovelly`) and TypeScript (`@clovelly/sdk`) SDKs and the gRPC protocol |
 | `docs/quickstart.md` | From nothing to your first sandbox |
+| `docs/pricing.md`, `docs/billing.md`, `docs/limits.md` | What it costs, how credit works, the limits |
 | `docs/evidence-pack.md` | Everything you need to check our claims, in one index |
 | `docs/threat-model.md` | What the system trusts and defends against |
 

@@ -26,6 +26,9 @@ class ErrorReason(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     NO_SUCH_TEMPLATE: _ClassVar[ErrorReason]
     VOLUME_BUSY: _ClassVar[ErrorReason]
     QUOTA_EXCEEDED: _ClassVar[ErrorReason]
+    CREDIT_EXHAUSTED: _ClassVar[ErrorReason]
+    NOT_READY: _ClassVar[ErrorReason]
+    SIGN_UP_CLOSED: _ClassVar[ErrorReason]
 
 class DrainState(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
@@ -50,6 +53,9 @@ STORAGE: ErrorReason
 NO_SUCH_TEMPLATE: ErrorReason
 VOLUME_BUSY: ErrorReason
 QUOTA_EXCEEDED: ErrorReason
+CREDIT_EXHAUSTED: ErrorReason
+NOT_READY: ErrorReason
+SIGN_UP_CLOSED: ErrorReason
 DRAIN_STATE_UNSPECIFIED: DrainState
 SERVING: DrainState
 DRAINING: DrainState
@@ -590,3 +596,513 @@ class OffboardResponse(_message.Message):
     objects_remaining: int
     rows_deleted: _containers.ScalarMap[str, int]
     def __init__(self, env_id: _Optional[str] = ..., started_unix_ms: _Optional[int] = ..., finished_unix_ms: _Optional[int] = ..., cells_deleted: _Optional[int] = ..., objects_deleted: _Optional[int] = ..., bytes_deleted: _Optional[int] = ..., object_names_sha256: _Optional[str] = ..., objects_remaining: _Optional[int] = ..., rows_deleted: _Optional[_Mapping[str, int]] = ...) -> None: ...
+
+class SignInRequest(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class SignInResponse(_message.Message):
+    __slots__ = ("org_id", "role", "sign_up")
+    ORG_ID_FIELD_NUMBER: _ClassVar[int]
+    ROLE_FIELD_NUMBER: _ClassVar[int]
+    SIGN_UP_FIELD_NUMBER: _ClassVar[int]
+    org_id: str
+    role: str
+    sign_up: str
+    def __init__(self, org_id: _Optional[str] = ..., role: _Optional[str] = ..., sign_up: _Optional[str] = ...) -> None: ...
+
+class SignUpRequest(_message.Message):
+    __slots__ = ("org_name", "terms_sha256")
+    ORG_NAME_FIELD_NUMBER: _ClassVar[int]
+    TERMS_SHA256_FIELD_NUMBER: _ClassVar[int]
+    org_name: str
+    terms_sha256: str
+    def __init__(self, org_name: _Optional[str] = ..., terms_sha256: _Optional[str] = ...) -> None: ...
+
+class SignUpResponse(_message.Message):
+    __slots__ = ("org_id", "waitlisted")
+    ORG_ID_FIELD_NUMBER: _ClassVar[int]
+    WAITLISTED_FIELD_NUMBER: _ClassVar[int]
+    org_id: str
+    waitlisted: bool
+    def __init__(self, org_id: _Optional[str] = ..., waitlisted: bool = ...) -> None: ...
+
+class GetOrgRequest(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class EnvironmentSummary(_message.Message):
+    __slots__ = ("env_id", "verifier_url", "created_unix_ms")
+    ENV_ID_FIELD_NUMBER: _ClassVar[int]
+    VERIFIER_URL_FIELD_NUMBER: _ClassVar[int]
+    CREATED_UNIX_MS_FIELD_NUMBER: _ClassVar[int]
+    env_id: str
+    verifier_url: str
+    created_unix_ms: int
+    def __init__(self, env_id: _Optional[str] = ..., verifier_url: _Optional[str] = ..., created_unix_ms: _Optional[int] = ...) -> None: ...
+
+class Org(_message.Message):
+    __slots__ = ("org_id", "name", "role", "created_unix_ms", "environments", "granted_envs", "card_on_file", "paused")
+    ORG_ID_FIELD_NUMBER: _ClassVar[int]
+    NAME_FIELD_NUMBER: _ClassVar[int]
+    ROLE_FIELD_NUMBER: _ClassVar[int]
+    CREATED_UNIX_MS_FIELD_NUMBER: _ClassVar[int]
+    ENVIRONMENTS_FIELD_NUMBER: _ClassVar[int]
+    GRANTED_ENVS_FIELD_NUMBER: _ClassVar[int]
+    CARD_ON_FILE_FIELD_NUMBER: _ClassVar[int]
+    PAUSED_FIELD_NUMBER: _ClassVar[int]
+    org_id: str
+    name: str
+    role: str
+    created_unix_ms: int
+    environments: _containers.RepeatedCompositeFieldContainer[EnvironmentSummary]
+    granted_envs: _containers.RepeatedScalarFieldContainer[str]
+    card_on_file: bool
+    paused: str
+    def __init__(self, org_id: _Optional[str] = ..., name: _Optional[str] = ..., role: _Optional[str] = ..., created_unix_ms: _Optional[int] = ..., environments: _Optional[_Iterable[_Union[EnvironmentSummary, _Mapping]]] = ..., granted_envs: _Optional[_Iterable[str]] = ..., card_on_file: bool = ..., paused: _Optional[str] = ...) -> None: ...
+
+class DeleteOrgRequest(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class DeleteOrgResponse(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class ListAuditRequest(_message.Message):
+    __slots__ = ("limit",)
+    LIMIT_FIELD_NUMBER: _ClassVar[int]
+    limit: int
+    def __init__(self, limit: _Optional[int] = ...) -> None: ...
+
+class AuditEvent(_message.Message):
+    __slots__ = ("at_unix_ms", "actor", "action", "target", "detail_json")
+    AT_UNIX_MS_FIELD_NUMBER: _ClassVar[int]
+    ACTOR_FIELD_NUMBER: _ClassVar[int]
+    ACTION_FIELD_NUMBER: _ClassVar[int]
+    TARGET_FIELD_NUMBER: _ClassVar[int]
+    DETAIL_JSON_FIELD_NUMBER: _ClassVar[int]
+    at_unix_ms: int
+    actor: str
+    action: str
+    target: str
+    detail_json: str
+    def __init__(self, at_unix_ms: _Optional[int] = ..., actor: _Optional[str] = ..., action: _Optional[str] = ..., target: _Optional[str] = ..., detail_json: _Optional[str] = ...) -> None: ...
+
+class ListAuditResponse(_message.Message):
+    __slots__ = ("events",)
+    EVENTS_FIELD_NUMBER: _ClassVar[int]
+    events: _containers.RepeatedCompositeFieldContainer[AuditEvent]
+    def __init__(self, events: _Optional[_Iterable[_Union[AuditEvent, _Mapping]]] = ...) -> None: ...
+
+class CheckVerifierRequest(_message.Message):
+    __slots__ = ("verifier_url", "env_id")
+    VERIFIER_URL_FIELD_NUMBER: _ClassVar[int]
+    ENV_ID_FIELD_NUMBER: _ClassVar[int]
+    verifier_url: str
+    env_id: str
+    def __init__(self, verifier_url: _Optional[str] = ..., env_id: _Optional[str] = ...) -> None: ...
+
+class CheckVerifierResponse(_message.Message):
+    __slots__ = ("ok", "problem", "ca_pem")
+    OK_FIELD_NUMBER: _ClassVar[int]
+    PROBLEM_FIELD_NUMBER: _ClassVar[int]
+    CA_PEM_FIELD_NUMBER: _ClassVar[int]
+    ok: bool
+    problem: str
+    ca_pem: str
+    def __init__(self, ok: bool = ..., problem: _Optional[str] = ..., ca_pem: _Optional[str] = ...) -> None: ...
+
+class CreateEnvironmentRequest(_message.Message):
+    __slots__ = ("env_id", "verifier_url")
+    ENV_ID_FIELD_NUMBER: _ClassVar[int]
+    VERIFIER_URL_FIELD_NUMBER: _ClassVar[int]
+    env_id: str
+    verifier_url: str
+    def __init__(self, env_id: _Optional[str] = ..., verifier_url: _Optional[str] = ...) -> None: ...
+
+class CreateEnvironmentResponse(_message.Message):
+    __slots__ = ("env_id", "key", "key_plaintext")
+    ENV_ID_FIELD_NUMBER: _ClassVar[int]
+    KEY_FIELD_NUMBER: _ClassVar[int]
+    KEY_PLAINTEXT_FIELD_NUMBER: _ClassVar[int]
+    env_id: str
+    key: ApiKey
+    key_plaintext: str
+    def __init__(self, env_id: _Optional[str] = ..., key: _Optional[_Union[ApiKey, _Mapping]] = ..., key_plaintext: _Optional[str] = ...) -> None: ...
+
+class EnvRequest(_message.Message):
+    __slots__ = ("env_id",)
+    ENV_ID_FIELD_NUMBER: _ClassVar[int]
+    env_id: str
+    def __init__(self, env_id: _Optional[str] = ...) -> None: ...
+
+class SubenvironmentRow(_message.Message):
+    __slots__ = ("subenv", "pool")
+    SUBENV_FIELD_NUMBER: _ClassVar[int]
+    POOL_FIELD_NUMBER: _ClassVar[int]
+    subenv: Subenvironment
+    pool: Pool
+    def __init__(self, subenv: _Optional[_Union[Subenvironment, _Mapping]] = ..., pool: _Optional[_Union[Pool, _Mapping]] = ...) -> None: ...
+
+class ListSubenvironmentsResponse(_message.Message):
+    __slots__ = ("subenvs",)
+    SUBENVS_FIELD_NUMBER: _ClassVar[int]
+    subenvs: _containers.RepeatedCompositeFieldContainer[SubenvironmentRow]
+    def __init__(self, subenvs: _Optional[_Iterable[_Union[SubenvironmentRow, _Mapping]]] = ...) -> None: ...
+
+class PlacementRow(_message.Message):
+    __slots__ = ("sandbox_id", "subenv_id", "cell_id", "size", "placed_unix_ms", "expires_unix_ms", "released_unix_ms", "cold")
+    SANDBOX_ID_FIELD_NUMBER: _ClassVar[int]
+    SUBENV_ID_FIELD_NUMBER: _ClassVar[int]
+    CELL_ID_FIELD_NUMBER: _ClassVar[int]
+    SIZE_FIELD_NUMBER: _ClassVar[int]
+    PLACED_UNIX_MS_FIELD_NUMBER: _ClassVar[int]
+    EXPIRES_UNIX_MS_FIELD_NUMBER: _ClassVar[int]
+    RELEASED_UNIX_MS_FIELD_NUMBER: _ClassVar[int]
+    COLD_FIELD_NUMBER: _ClassVar[int]
+    sandbox_id: str
+    subenv_id: str
+    cell_id: str
+    size: Resources
+    placed_unix_ms: int
+    expires_unix_ms: int
+    released_unix_ms: int
+    cold: bool
+    def __init__(self, sandbox_id: _Optional[str] = ..., subenv_id: _Optional[str] = ..., cell_id: _Optional[str] = ..., size: _Optional[_Union[Resources, _Mapping]] = ..., placed_unix_ms: _Optional[int] = ..., expires_unix_ms: _Optional[int] = ..., released_unix_ms: _Optional[int] = ..., cold: bool = ...) -> None: ...
+
+class ListPlacementsResponse(_message.Message):
+    __slots__ = ("placements",)
+    PLACEMENTS_FIELD_NUMBER: _ClassVar[int]
+    placements: _containers.RepeatedCompositeFieldContainer[PlacementRow]
+    def __init__(self, placements: _Optional[_Iterable[_Union[PlacementRow, _Mapping]]] = ...) -> None: ...
+
+class CellRow(_message.Message):
+    __slots__ = ("cell_id", "subenv_id", "state", "zone", "release_id", "sandbox_count", "cpu_in_use_millis", "memory_in_use_bytes", "lease_expiry_unix", "drain_state", "reported_unix_ms")
+    CELL_ID_FIELD_NUMBER: _ClassVar[int]
+    SUBENV_ID_FIELD_NUMBER: _ClassVar[int]
+    STATE_FIELD_NUMBER: _ClassVar[int]
+    ZONE_FIELD_NUMBER: _ClassVar[int]
+    RELEASE_ID_FIELD_NUMBER: _ClassVar[int]
+    SANDBOX_COUNT_FIELD_NUMBER: _ClassVar[int]
+    CPU_IN_USE_MILLIS_FIELD_NUMBER: _ClassVar[int]
+    MEMORY_IN_USE_BYTES_FIELD_NUMBER: _ClassVar[int]
+    LEASE_EXPIRY_UNIX_FIELD_NUMBER: _ClassVar[int]
+    DRAIN_STATE_FIELD_NUMBER: _ClassVar[int]
+    REPORTED_UNIX_MS_FIELD_NUMBER: _ClassVar[int]
+    cell_id: str
+    subenv_id: str
+    state: str
+    zone: str
+    release_id: str
+    sandbox_count: int
+    cpu_in_use_millis: int
+    memory_in_use_bytes: int
+    lease_expiry_unix: int
+    drain_state: str
+    reported_unix_ms: int
+    def __init__(self, cell_id: _Optional[str] = ..., subenv_id: _Optional[str] = ..., state: _Optional[str] = ..., zone: _Optional[str] = ..., release_id: _Optional[str] = ..., sandbox_count: _Optional[int] = ..., cpu_in_use_millis: _Optional[int] = ..., memory_in_use_bytes: _Optional[int] = ..., lease_expiry_unix: _Optional[int] = ..., drain_state: _Optional[str] = ..., reported_unix_ms: _Optional[int] = ...) -> None: ...
+
+class ListCellsResponse(_message.Message):
+    __slots__ = ("cells",)
+    CELLS_FIELD_NUMBER: _ClassVar[int]
+    cells: _containers.RepeatedCompositeFieldContainer[CellRow]
+    def __init__(self, cells: _Optional[_Iterable[_Union[CellRow, _Mapping]]] = ...) -> None: ...
+
+class TemplateRow(_message.Message):
+    __slots__ = ("subenv_id", "template", "uploaded_unix_ms")
+    SUBENV_ID_FIELD_NUMBER: _ClassVar[int]
+    TEMPLATE_FIELD_NUMBER: _ClassVar[int]
+    UPLOADED_UNIX_MS_FIELD_NUMBER: _ClassVar[int]
+    subenv_id: str
+    template: TemplateInfo
+    uploaded_unix_ms: int
+    def __init__(self, subenv_id: _Optional[str] = ..., template: _Optional[_Union[TemplateInfo, _Mapping]] = ..., uploaded_unix_ms: _Optional[int] = ...) -> None: ...
+
+class ListTemplatesResponse(_message.Message):
+    __slots__ = ("templates",)
+    TEMPLATES_FIELD_NUMBER: _ClassVar[int]
+    templates: _containers.RepeatedCompositeFieldContainer[TemplateRow]
+    def __init__(self, templates: _Optional[_Iterable[_Union[TemplateRow, _Mapping]]] = ...) -> None: ...
+
+class GetDailyUsageRequest(_message.Message):
+    __slots__ = ("env_id", "month")
+    ENV_ID_FIELD_NUMBER: _ClassVar[int]
+    MONTH_FIELD_NUMBER: _ClassVar[int]
+    env_id: str
+    month: str
+    def __init__(self, env_id: _Optional[str] = ..., month: _Optional[str] = ...) -> None: ...
+
+class DailyUsageRow(_message.Message):
+    __slots__ = ("day", "subenv_id", "cell_minutes")
+    DAY_FIELD_NUMBER: _ClassVar[int]
+    SUBENV_ID_FIELD_NUMBER: _ClassVar[int]
+    CELL_MINUTES_FIELD_NUMBER: _ClassVar[int]
+    day: str
+    subenv_id: str
+    cell_minutes: float
+    def __init__(self, day: _Optional[str] = ..., subenv_id: _Optional[str] = ..., cell_minutes: _Optional[float] = ...) -> None: ...
+
+class DailySandboxes(_message.Message):
+    __slots__ = ("day", "peak_concurrent")
+    DAY_FIELD_NUMBER: _ClassVar[int]
+    PEAK_CONCURRENT_FIELD_NUMBER: _ClassVar[int]
+    day: str
+    peak_concurrent: int
+    def __init__(self, day: _Optional[str] = ..., peak_concurrent: _Optional[int] = ...) -> None: ...
+
+class DailyUsage(_message.Message):
+    __slots__ = ("rows", "sandboxes", "total_cents")
+    ROWS_FIELD_NUMBER: _ClassVar[int]
+    SANDBOXES_FIELD_NUMBER: _ClassVar[int]
+    TOTAL_CENTS_FIELD_NUMBER: _ClassVar[int]
+    rows: _containers.RepeatedCompositeFieldContainer[DailyUsageRow]
+    sandboxes: _containers.RepeatedCompositeFieldContainer[DailySandboxes]
+    total_cents: int
+    def __init__(self, rows: _Optional[_Iterable[_Union[DailyUsageRow, _Mapping]]] = ..., sandboxes: _Optional[_Iterable[_Union[DailySandboxes, _Mapping]]] = ..., total_cents: _Optional[int] = ...) -> None: ...
+
+class ApiKey(_message.Message):
+    __slots__ = ("key_id", "env_id", "name", "role", "prefix", "created_by", "created_unix_ms", "revoked_unix_ms", "last_used_unix_ms")
+    KEY_ID_FIELD_NUMBER: _ClassVar[int]
+    ENV_ID_FIELD_NUMBER: _ClassVar[int]
+    NAME_FIELD_NUMBER: _ClassVar[int]
+    ROLE_FIELD_NUMBER: _ClassVar[int]
+    PREFIX_FIELD_NUMBER: _ClassVar[int]
+    CREATED_BY_FIELD_NUMBER: _ClassVar[int]
+    CREATED_UNIX_MS_FIELD_NUMBER: _ClassVar[int]
+    REVOKED_UNIX_MS_FIELD_NUMBER: _ClassVar[int]
+    LAST_USED_UNIX_MS_FIELD_NUMBER: _ClassVar[int]
+    key_id: str
+    env_id: str
+    name: str
+    role: str
+    prefix: str
+    created_by: str
+    created_unix_ms: int
+    revoked_unix_ms: int
+    last_used_unix_ms: int
+    def __init__(self, key_id: _Optional[str] = ..., env_id: _Optional[str] = ..., name: _Optional[str] = ..., role: _Optional[str] = ..., prefix: _Optional[str] = ..., created_by: _Optional[str] = ..., created_unix_ms: _Optional[int] = ..., revoked_unix_ms: _Optional[int] = ..., last_used_unix_ms: _Optional[int] = ...) -> None: ...
+
+class ListKeysResponse(_message.Message):
+    __slots__ = ("keys",)
+    KEYS_FIELD_NUMBER: _ClassVar[int]
+    keys: _containers.RepeatedCompositeFieldContainer[ApiKey]
+    def __init__(self, keys: _Optional[_Iterable[_Union[ApiKey, _Mapping]]] = ...) -> None: ...
+
+class CreateKeyRequest(_message.Message):
+    __slots__ = ("env_id", "name", "role")
+    ENV_ID_FIELD_NUMBER: _ClassVar[int]
+    NAME_FIELD_NUMBER: _ClassVar[int]
+    ROLE_FIELD_NUMBER: _ClassVar[int]
+    env_id: str
+    name: str
+    role: str
+    def __init__(self, env_id: _Optional[str] = ..., name: _Optional[str] = ..., role: _Optional[str] = ...) -> None: ...
+
+class CreateKeyResponse(_message.Message):
+    __slots__ = ("key", "plaintext")
+    KEY_FIELD_NUMBER: _ClassVar[int]
+    PLAINTEXT_FIELD_NUMBER: _ClassVar[int]
+    key: ApiKey
+    plaintext: str
+    def __init__(self, key: _Optional[_Union[ApiKey, _Mapping]] = ..., plaintext: _Optional[str] = ...) -> None: ...
+
+class RevokeKeyRequest(_message.Message):
+    __slots__ = ("env_id", "key_id")
+    ENV_ID_FIELD_NUMBER: _ClassVar[int]
+    KEY_ID_FIELD_NUMBER: _ClassVar[int]
+    env_id: str
+    key_id: str
+    def __init__(self, env_id: _Optional[str] = ..., key_id: _Optional[str] = ...) -> None: ...
+
+class RevokeKeyResponse(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class Member(_message.Message):
+    __slots__ = ("user_id", "email", "role", "granted_envs", "joined_unix_ms")
+    USER_ID_FIELD_NUMBER: _ClassVar[int]
+    EMAIL_FIELD_NUMBER: _ClassVar[int]
+    ROLE_FIELD_NUMBER: _ClassVar[int]
+    GRANTED_ENVS_FIELD_NUMBER: _ClassVar[int]
+    JOINED_UNIX_MS_FIELD_NUMBER: _ClassVar[int]
+    user_id: str
+    email: str
+    role: str
+    granted_envs: _containers.RepeatedScalarFieldContainer[str]
+    joined_unix_ms: int
+    def __init__(self, user_id: _Optional[str] = ..., email: _Optional[str] = ..., role: _Optional[str] = ..., granted_envs: _Optional[_Iterable[str]] = ..., joined_unix_ms: _Optional[int] = ...) -> None: ...
+
+class Invitation(_message.Message):
+    __slots__ = ("invitation_id", "email", "role", "granted_envs", "sent_unix_ms")
+    INVITATION_ID_FIELD_NUMBER: _ClassVar[int]
+    EMAIL_FIELD_NUMBER: _ClassVar[int]
+    ROLE_FIELD_NUMBER: _ClassVar[int]
+    GRANTED_ENVS_FIELD_NUMBER: _ClassVar[int]
+    SENT_UNIX_MS_FIELD_NUMBER: _ClassVar[int]
+    invitation_id: str
+    email: str
+    role: str
+    granted_envs: _containers.RepeatedScalarFieldContainer[str]
+    sent_unix_ms: int
+    def __init__(self, invitation_id: _Optional[str] = ..., email: _Optional[str] = ..., role: _Optional[str] = ..., granted_envs: _Optional[_Iterable[str]] = ..., sent_unix_ms: _Optional[int] = ...) -> None: ...
+
+class ListMembersRequest(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class ListMembersResponse(_message.Message):
+    __slots__ = ("members", "invitations")
+    MEMBERS_FIELD_NUMBER: _ClassVar[int]
+    INVITATIONS_FIELD_NUMBER: _ClassVar[int]
+    members: _containers.RepeatedCompositeFieldContainer[Member]
+    invitations: _containers.RepeatedCompositeFieldContainer[Invitation]
+    def __init__(self, members: _Optional[_Iterable[_Union[Member, _Mapping]]] = ..., invitations: _Optional[_Iterable[_Union[Invitation, _Mapping]]] = ...) -> None: ...
+
+class InviteMemberRequest(_message.Message):
+    __slots__ = ("email", "role", "granted_envs")
+    EMAIL_FIELD_NUMBER: _ClassVar[int]
+    ROLE_FIELD_NUMBER: _ClassVar[int]
+    GRANTED_ENVS_FIELD_NUMBER: _ClassVar[int]
+    email: str
+    role: str
+    granted_envs: _containers.RepeatedScalarFieldContainer[str]
+    def __init__(self, email: _Optional[str] = ..., role: _Optional[str] = ..., granted_envs: _Optional[_Iterable[str]] = ...) -> None: ...
+
+class RevokeInvitationRequest(_message.Message):
+    __slots__ = ("invitation_id",)
+    INVITATION_ID_FIELD_NUMBER: _ClassVar[int]
+    invitation_id: str
+    def __init__(self, invitation_id: _Optional[str] = ...) -> None: ...
+
+class RevokeInvitationResponse(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class SetMemberRequest(_message.Message):
+    __slots__ = ("user_id", "role", "granted_envs")
+    USER_ID_FIELD_NUMBER: _ClassVar[int]
+    ROLE_FIELD_NUMBER: _ClassVar[int]
+    GRANTED_ENVS_FIELD_NUMBER: _ClassVar[int]
+    user_id: str
+    role: str
+    granted_envs: _containers.RepeatedScalarFieldContainer[str]
+    def __init__(self, user_id: _Optional[str] = ..., role: _Optional[str] = ..., granted_envs: _Optional[_Iterable[str]] = ...) -> None: ...
+
+class RemoveMemberRequest(_message.Message):
+    __slots__ = ("user_id",)
+    USER_ID_FIELD_NUMBER: _ClassVar[int]
+    user_id: str
+    def __init__(self, user_id: _Optional[str] = ...) -> None: ...
+
+class RemoveMemberResponse(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class CreditGrant(_message.Message):
+    __slots__ = ("kind", "amount_cents", "left_cents", "granted_unix_ms", "expires_unix_ms")
+    KIND_FIELD_NUMBER: _ClassVar[int]
+    AMOUNT_CENTS_FIELD_NUMBER: _ClassVar[int]
+    LEFT_CENTS_FIELD_NUMBER: _ClassVar[int]
+    GRANTED_UNIX_MS_FIELD_NUMBER: _ClassVar[int]
+    EXPIRES_UNIX_MS_FIELD_NUMBER: _ClassVar[int]
+    kind: str
+    amount_cents: int
+    left_cents: int
+    granted_unix_ms: int
+    expires_unix_ms: int
+    def __init__(self, kind: _Optional[str] = ..., amount_cents: _Optional[int] = ..., left_cents: _Optional[int] = ..., granted_unix_ms: _Optional[int] = ..., expires_unix_ms: _Optional[int] = ...) -> None: ...
+
+class Charge(_message.Message):
+    __slots__ = ("kind", "amount_cents", "status", "pay_url", "created_unix_ms", "failed_unix_ms", "paid_unix_ms")
+    KIND_FIELD_NUMBER: _ClassVar[int]
+    AMOUNT_CENTS_FIELD_NUMBER: _ClassVar[int]
+    STATUS_FIELD_NUMBER: _ClassVar[int]
+    PAY_URL_FIELD_NUMBER: _ClassVar[int]
+    CREATED_UNIX_MS_FIELD_NUMBER: _ClassVar[int]
+    FAILED_UNIX_MS_FIELD_NUMBER: _ClassVar[int]
+    PAID_UNIX_MS_FIELD_NUMBER: _ClassVar[int]
+    kind: str
+    amount_cents: int
+    status: str
+    pay_url: str
+    created_unix_ms: int
+    failed_unix_ms: int
+    paid_unix_ms: int
+    def __init__(self, kind: _Optional[str] = ..., amount_cents: _Optional[int] = ..., status: _Optional[str] = ..., pay_url: _Optional[str] = ..., created_unix_ms: _Optional[int] = ..., failed_unix_ms: _Optional[int] = ..., paid_unix_ms: _Optional[int] = ...) -> None: ...
+
+class Billing(_message.Message):
+    __slots__ = ("balance_cents", "balance_unix_ms", "credits", "charges", "card_on_file", "card_summary", "period_start_unix_ms", "period_end_unix_ms", "environment_fee_cents", "low_balance_cents", "recharge_cents", "paused")
+    BALANCE_CENTS_FIELD_NUMBER: _ClassVar[int]
+    BALANCE_UNIX_MS_FIELD_NUMBER: _ClassVar[int]
+    CREDITS_FIELD_NUMBER: _ClassVar[int]
+    CHARGES_FIELD_NUMBER: _ClassVar[int]
+    CARD_ON_FILE_FIELD_NUMBER: _ClassVar[int]
+    CARD_SUMMARY_FIELD_NUMBER: _ClassVar[int]
+    PERIOD_START_UNIX_MS_FIELD_NUMBER: _ClassVar[int]
+    PERIOD_END_UNIX_MS_FIELD_NUMBER: _ClassVar[int]
+    ENVIRONMENT_FEE_CENTS_FIELD_NUMBER: _ClassVar[int]
+    LOW_BALANCE_CENTS_FIELD_NUMBER: _ClassVar[int]
+    RECHARGE_CENTS_FIELD_NUMBER: _ClassVar[int]
+    PAUSED_FIELD_NUMBER: _ClassVar[int]
+    balance_cents: int
+    balance_unix_ms: int
+    credits: _containers.RepeatedCompositeFieldContainer[CreditGrant]
+    charges: _containers.RepeatedCompositeFieldContainer[Charge]
+    card_on_file: bool
+    card_summary: str
+    period_start_unix_ms: int
+    period_end_unix_ms: int
+    environment_fee_cents: int
+    low_balance_cents: int
+    recharge_cents: int
+    paused: str
+    def __init__(self, balance_cents: _Optional[int] = ..., balance_unix_ms: _Optional[int] = ..., credits: _Optional[_Iterable[_Union[CreditGrant, _Mapping]]] = ..., charges: _Optional[_Iterable[_Union[Charge, _Mapping]]] = ..., card_on_file: bool = ..., card_summary: _Optional[str] = ..., period_start_unix_ms: _Optional[int] = ..., period_end_unix_ms: _Optional[int] = ..., environment_fee_cents: _Optional[int] = ..., low_balance_cents: _Optional[int] = ..., recharge_cents: _Optional[int] = ..., paused: _Optional[str] = ...) -> None: ...
+
+class GetBillingRequest(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class CardSetupRequest(_message.Message):
+    __slots__ = ("return_url",)
+    RETURN_URL_FIELD_NUMBER: _ClassVar[int]
+    return_url: str
+    def __init__(self, return_url: _Optional[str] = ...) -> None: ...
+
+class HostedPage(_message.Message):
+    __slots__ = ("url",)
+    URL_FIELD_NUMBER: _ClassVar[int]
+    url: str
+    def __init__(self, url: _Optional[str] = ...) -> None: ...
+
+class ConfirmCardRequest(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class BuyCreditRequest(_message.Message):
+    __slots__ = ("cents", "request_id")
+    CENTS_FIELD_NUMBER: _ClassVar[int]
+    REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
+    cents: int
+    request_id: str
+    def __init__(self, cents: _Optional[int] = ..., request_id: _Optional[str] = ...) -> None: ...
+
+class SetAutoRechargeRequest(_message.Message):
+    __slots__ = ("low_balance_cents", "recharge_cents")
+    LOW_BALANCE_CENTS_FIELD_NUMBER: _ClassVar[int]
+    RECHARGE_CENTS_FIELD_NUMBER: _ClassVar[int]
+    low_balance_cents: int
+    recharge_cents: int
+    def __init__(self, low_balance_cents: _Optional[int] = ..., recharge_cents: _Optional[int] = ...) -> None: ...
+
+class StripeWebhookRequest(_message.Message):
+    __slots__ = ("payload", "signature")
+    PAYLOAD_FIELD_NUMBER: _ClassVar[int]
+    SIGNATURE_FIELD_NUMBER: _ClassVar[int]
+    payload: bytes
+    signature: str
+    def __init__(self, payload: _Optional[bytes] = ..., signature: _Optional[str] = ...) -> None: ...
+
+class StripeWebhookResponse(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...

@@ -1,8 +1,9 @@
 # Your first sandbox
 
 From nothing to a sandbox running your code, in under an hour. You need a Google Cloud
-project with billing, and from Clovelly an account: the operator gives you the control
-plane's address, its CA certificate and the release public key and release policy.
+project with billing, a card for your Clovelly account, and the console at
+[app.clovelly.io](https://app.clovelly.io), which gives you the control plane's address, its CA
+certificate, and the release policy your verifier checks against the public release key.
 
 ## 1. Deploy your verifier (about 40 minutes)
 
@@ -27,12 +28,19 @@ jq --arg h "$(printf %s "$CLOVELLY_VERIFIER_TOKEN" | shasum -a 256 | cut -d' ' -
 
 ## 2. Create your environment (5 minutes)
 
-Send the operator your verifier's URL, your environment id and `ca.pem`. You get back an API
-token, the API address and its CA, and a pool for your sub-environment. Keep the token
-secret: it can place sandboxes as you.
+Sign in to the console at [app.clovelly.io](https://app.clovelly.io) and name your organization.
+Its onboarding page shows these commands again, checks that your verifier answers and serves your
+CA, creates your environment and shows its first API key, **once**. Keep the key secret: it can
+place sandboxes as you. Signing up and all of this are free and need no card.
+
+Then, on the Billing tab, add a card: no cell boots until your organization has a card on file and
+credit above zero ([billing.md](billing.md)). On the Settings tab, add your sub-environment and its
+pool; the pool's defaults boot nothing until a sandbox asks for a cell.
+
+The console shows the API's address and CA. Point the SDK at them:
 
 ```bash
-export CLOVELLY_API_URL=API_ADDRESS CLOVELLY_API_TOKEN=YOUR_TOKEN CLOVELLY_API_CA=api-ca.pem
+export CLOVELLY_API_URL=API_ADDRESS CLOVELLY_API_TOKEN=clv_MY_ENV_... CLOVELLY_API_CA=api-ca.pem
 ```
 
 ## 3. Install an SDK

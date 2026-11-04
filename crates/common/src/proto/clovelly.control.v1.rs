@@ -533,6 +533,482 @@ pub struct OffboardResponse {
     #[prost(map = "string, uint64", tag = "9")]
     pub rows_deleted: ::std::collections::HashMap<::prost::alloc::string::String, u64>,
 }
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct SignInRequest {}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct SignInResponse {
+    /// Empty when the caller belongs to no organization yet.
+    #[prost(string, tag = "1")]
+    pub org_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub role: ::prost::alloc::string::String,
+    /// "open", "closed" or "waitlisted": what SignUp would do for this caller.
+    #[prost(string, tag = "3")]
+    pub sign_up: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct SignUpRequest {
+    #[prost(string, tag = "1")]
+    pub org_name: ::prost::alloc::string::String,
+    /// The hex SHA-256 of the docs/terms.md the caller accepted.
+    #[prost(string, tag = "2")]
+    pub terms_sha256: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct SignUpResponse {
+    /// Empty unless the organization was made.
+    #[prost(string, tag = "1")]
+    pub org_id: ::prost::alloc::string::String,
+    #[prost(bool, tag = "2")]
+    pub waitlisted: bool,
+}
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct GetOrgRequest {}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct EnvironmentSummary {
+    #[prost(string, tag = "1")]
+    pub env_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub verifier_url: ::prost::alloc::string::String,
+    #[prost(uint64, tag = "3")]
+    pub created_unix_ms: u64,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Org {
+    #[prost(string, tag = "1")]
+    pub org_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub name: ::prost::alloc::string::String,
+    /// The caller's role: owner, admin, developer, read_only; read_write for a key.
+    #[prost(string, tag = "3")]
+    pub role: ::prost::alloc::string::String,
+    #[prost(uint64, tag = "4")]
+    pub created_unix_ms: u64,
+    #[prost(message, repeated, tag = "5")]
+    pub environments: ::prost::alloc::vec::Vec<EnvironmentSummary>,
+    /// The environments a developer may change; empty for every other role.
+    #[prost(string, repeated, tag = "6")]
+    pub granted_envs: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    #[prost(bool, tag = "7")]
+    pub card_on_file: bool,
+    /// Placements are refused now, and why: "no_card", "credit_exhausted", "charge_failed";
+    /// empty when they are not.
+    #[prost(string, tag = "8")]
+    pub paused: ::prost::alloc::string::String,
+}
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct DeleteOrgRequest {}
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct DeleteOrgResponse {}
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct ListAuditRequest {
+    #[prost(uint32, tag = "1")]
+    pub limit: u32,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct AuditEvent {
+    #[prost(uint64, tag = "1")]
+    pub at_unix_ms: u64,
+    #[prost(string, tag = "2")]
+    pub actor: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub action: ::prost::alloc::string::String,
+    #[prost(string, tag = "4")]
+    pub target: ::prost::alloc::string::String,
+    #[prost(string, tag = "5")]
+    pub detail_json: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ListAuditResponse {
+    #[prost(message, repeated, tag = "1")]
+    pub events: ::prost::alloc::vec::Vec<AuditEvent>,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct CheckVerifierRequest {
+    #[prost(string, tag = "1")]
+    pub verifier_url: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub env_id: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct CheckVerifierResponse {
+    #[prost(bool, tag = "1")]
+    pub ok: bool,
+    /// For people: what failed.
+    #[prost(string, tag = "2")]
+    pub problem: ::prost::alloc::string::String,
+    /// The environment CA the verifier serves.
+    #[prost(string, tag = "3")]
+    pub ca_pem: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct CreateEnvironmentRequest {
+    /// A DNS label; ids are global.
+    #[prost(string, tag = "1")]
+    pub env_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub verifier_url: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct CreateEnvironmentResponse {
+    #[prost(string, tag = "1")]
+    pub env_id: ::prost::alloc::string::String,
+    #[prost(message, optional, tag = "2")]
+    pub key: ::core::option::Option<ApiKey>,
+    #[prost(string, tag = "3")]
+    pub key_plaintext: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct EnvRequest {
+    #[prost(string, tag = "1")]
+    pub env_id: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct SubenvironmentRow {
+    #[prost(message, optional, tag = "1")]
+    pub subenv: ::core::option::Option<Subenvironment>,
+    /// Unset until the sub-environment has a pool.
+    #[prost(message, optional, tag = "2")]
+    pub pool: ::core::option::Option<Pool>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ListSubenvironmentsResponse {
+    #[prost(message, repeated, tag = "1")]
+    pub subenvs: ::prost::alloc::vec::Vec<SubenvironmentRow>,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct PlacementRow {
+    #[prost(string, tag = "1")]
+    pub sandbox_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub subenv_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub cell_id: ::prost::alloc::string::String,
+    #[prost(message, optional, tag = "4")]
+    pub size: ::core::option::Option<Resources>,
+    #[prost(uint64, tag = "5")]
+    pub placed_unix_ms: u64,
+    #[prost(uint64, tag = "6")]
+    pub expires_unix_ms: u64,
+    /// 0 while running.
+    #[prost(uint64, tag = "7")]
+    pub released_unix_ms: u64,
+    #[prost(bool, tag = "8")]
+    pub cold: bool,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ListPlacementsResponse {
+    /// Running first, then those released in the last 24 hours.
+    #[prost(message, repeated, tag = "1")]
+    pub placements: ::prost::alloc::vec::Vec<PlacementRow>,
+}
+/// A cell and what it reports: nothing outside the fixed telemetry set.
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct CellRow {
+    #[prost(string, tag = "1")]
+    pub cell_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub subenv_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub state: ::prost::alloc::string::String,
+    #[prost(string, tag = "4")]
+    pub zone: ::prost::alloc::string::String,
+    #[prost(string, tag = "5")]
+    pub release_id: ::prost::alloc::string::String,
+    #[prost(uint32, tag = "6")]
+    pub sandbox_count: u32,
+    #[prost(uint32, tag = "7")]
+    pub cpu_in_use_millis: u32,
+    #[prost(uint64, tag = "8")]
+    pub memory_in_use_bytes: u64,
+    #[prost(uint64, tag = "9")]
+    pub lease_expiry_unix: u64,
+    #[prost(string, tag = "10")]
+    pub drain_state: ::prost::alloc::string::String,
+    #[prost(uint64, tag = "11")]
+    pub reported_unix_ms: u64,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ListCellsResponse {
+    #[prost(message, repeated, tag = "1")]
+    pub cells: ::prost::alloc::vec::Vec<CellRow>,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct TemplateRow {
+    #[prost(string, tag = "1")]
+    pub subenv_id: ::prost::alloc::string::String,
+    #[prost(message, optional, tag = "2")]
+    pub template: ::core::option::Option<TemplateInfo>,
+    /// 0 for a template uploaded before this was recorded.
+    #[prost(uint64, tag = "3")]
+    pub uploaded_unix_ms: u64,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ListTemplatesResponse {
+    #[prost(message, repeated, tag = "1")]
+    pub templates: ::prost::alloc::vec::Vec<TemplateRow>,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct GetDailyUsageRequest {
+    #[prost(string, tag = "1")]
+    pub env_id: ::prost::alloc::string::String,
+    /// YYYY-MM.
+    #[prost(string, tag = "2")]
+    pub month: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DailyUsageRow {
+    /// YYYY-MM-DD, UTC.
+    #[prost(string, tag = "1")]
+    pub day: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub subenv_id: ::prost::alloc::string::String,
+    #[prost(double, tag = "3")]
+    pub cell_minutes: f64,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct DailySandboxes {
+    #[prost(string, tag = "1")]
+    pub day: ::prost::alloc::string::String,
+    #[prost(uint32, tag = "2")]
+    pub peak_concurrent: u32,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DailyUsage {
+    #[prost(message, repeated, tag = "1")]
+    pub rows: ::prost::alloc::vec::Vec<DailyUsageRow>,
+    #[prost(message, repeated, tag = "2")]
+    pub sandboxes: ::prost::alloc::vec::Vec<DailySandboxes>,
+    /// What the month's export bills, to the cent.
+    #[prost(uint64, tag = "3")]
+    pub total_cents: u64,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct ApiKey {
+    #[prost(string, tag = "1")]
+    pub key_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub env_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub name: ::prost::alloc::string::String,
+    /// read_write or read_only.
+    #[prost(string, tag = "4")]
+    pub role: ::prost::alloc::string::String,
+    /// The first characters of the key, to recognise it by.
+    #[prost(string, tag = "5")]
+    pub prefix: ::prost::alloc::string::String,
+    #[prost(string, tag = "6")]
+    pub created_by: ::prost::alloc::string::String,
+    #[prost(uint64, tag = "7")]
+    pub created_unix_ms: u64,
+    #[prost(uint64, tag = "8")]
+    pub revoked_unix_ms: u64,
+    /// Coarse: batched every few minutes.
+    #[prost(uint64, tag = "9")]
+    pub last_used_unix_ms: u64,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ListKeysResponse {
+    #[prost(message, repeated, tag = "1")]
+    pub keys: ::prost::alloc::vec::Vec<ApiKey>,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct CreateKeyRequest {
+    #[prost(string, tag = "1")]
+    pub env_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub name: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub role: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct CreateKeyResponse {
+    #[prost(message, optional, tag = "1")]
+    pub key: ::core::option::Option<ApiKey>,
+    #[prost(string, tag = "2")]
+    pub plaintext: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct RevokeKeyRequest {
+    #[prost(string, tag = "1")]
+    pub env_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub key_id: ::prost::alloc::string::String,
+}
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct RevokeKeyResponse {}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct Member {
+    #[prost(string, tag = "1")]
+    pub user_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub email: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub role: ::prost::alloc::string::String,
+    #[prost(string, repeated, tag = "4")]
+    pub granted_envs: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    #[prost(uint64, tag = "5")]
+    pub joined_unix_ms: u64,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct Invitation {
+    #[prost(string, tag = "1")]
+    pub invitation_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub email: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub role: ::prost::alloc::string::String,
+    #[prost(string, repeated, tag = "4")]
+    pub granted_envs: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    #[prost(uint64, tag = "5")]
+    pub sent_unix_ms: u64,
+}
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct ListMembersRequest {}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ListMembersResponse {
+    #[prost(message, repeated, tag = "1")]
+    pub members: ::prost::alloc::vec::Vec<Member>,
+    #[prost(message, repeated, tag = "2")]
+    pub invitations: ::prost::alloc::vec::Vec<Invitation>,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct InviteMemberRequest {
+    #[prost(string, tag = "1")]
+    pub email: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub role: ::prost::alloc::string::String,
+    #[prost(string, repeated, tag = "3")]
+    pub granted_envs: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct RevokeInvitationRequest {
+    #[prost(string, tag = "1")]
+    pub invitation_id: ::prost::alloc::string::String,
+}
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct RevokeInvitationResponse {}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct SetMemberRequest {
+    #[prost(string, tag = "1")]
+    pub user_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub role: ::prost::alloc::string::String,
+    #[prost(string, repeated, tag = "3")]
+    pub granted_envs: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct RemoveMemberRequest {
+    #[prost(string, tag = "1")]
+    pub user_id: ::prost::alloc::string::String,
+}
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct RemoveMemberResponse {}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct CreditGrant {
+    /// period, bought or operator.
+    #[prost(string, tag = "1")]
+    pub kind: ::prost::alloc::string::String,
+    #[prost(int64, tag = "2")]
+    pub amount_cents: i64,
+    #[prost(int64, tag = "3")]
+    pub left_cents: i64,
+    #[prost(uint64, tag = "4")]
+    pub granted_unix_ms: u64,
+    #[prost(uint64, tag = "5")]
+    pub expires_unix_ms: u64,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct Charge {
+    /// fee, top_up or recharge.
+    #[prost(string, tag = "1")]
+    pub kind: ::prost::alloc::string::String,
+    #[prost(int64, tag = "2")]
+    pub amount_cents: i64,
+    /// pending, open, paid or failed.
+    #[prost(string, tag = "3")]
+    pub status: ::prost::alloc::string::String,
+    /// Stripe's page to pay it; empty once paid.
+    #[prost(string, tag = "4")]
+    pub pay_url: ::prost::alloc::string::String,
+    #[prost(uint64, tag = "5")]
+    pub created_unix_ms: u64,
+    #[prost(uint64, tag = "6")]
+    pub failed_unix_ms: u64,
+    #[prost(uint64, tag = "7")]
+    pub paid_unix_ms: u64,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Billing {
+    /// Below zero: owed, taken off the next credit.
+    #[prost(int64, tag = "1")]
+    pub balance_cents: i64,
+    #[prost(uint64, tag = "2")]
+    pub balance_unix_ms: u64,
+    #[prost(message, repeated, tag = "3")]
+    pub credits: ::prost::alloc::vec::Vec<CreditGrant>,
+    #[prost(message, repeated, tag = "4")]
+    pub charges: ::prost::alloc::vec::Vec<Charge>,
+    #[prost(bool, tag = "5")]
+    pub card_on_file: bool,
+    #[prost(string, tag = "6")]
+    pub card_summary: ::prost::alloc::string::String,
+    /// 0 before the card goes on file.
+    #[prost(uint64, tag = "7")]
+    pub period_start_unix_ms: u64,
+    #[prost(uint64, tag = "8")]
+    pub period_end_unix_ms: u64,
+    #[prost(int64, tag = "9")]
+    pub environment_fee_cents: i64,
+    #[prost(int64, tag = "10")]
+    pub low_balance_cents: i64,
+    /// 0: auto-recharge is off.
+    #[prost(int64, tag = "11")]
+    pub recharge_cents: i64,
+    /// As in Org.paused.
+    #[prost(string, tag = "12")]
+    pub paused: ::prost::alloc::string::String,
+}
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct GetBillingRequest {}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct CardSetupRequest {
+    /// Where Stripe sends the customer back to.
+    #[prost(string, tag = "1")]
+    pub return_url: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct HostedPage {
+    #[prost(string, tag = "1")]
+    pub url: ::prost::alloc::string::String,
+}
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct ConfirmCardRequest {}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct BuyCreditRequest {
+    #[prost(int64, tag = "1")]
+    pub cents: i64,
+    /// Once per id; the same id with another amount is refused.
+    #[prost(string, tag = "2")]
+    pub request_id: ::prost::alloc::string::String,
+}
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct SetAutoRechargeRequest {
+    #[prost(int64, tag = "1")]
+    pub low_balance_cents: i64,
+    /// 0 turns it off; otherwise at least $10 and at least the low-balance level.
+    #[prost(int64, tag = "2")]
+    pub recharge_cents: i64,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct StripeWebhookRequest {
+    #[prost(bytes = "vec", tag = "1")]
+    pub payload: ::prost::alloc::vec::Vec<u8>,
+    #[prost(string, tag = "2")]
+    pub signature: ::prost::alloc::string::String,
+}
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct StripeWebhookResponse {}
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum ErrorReason {
@@ -566,6 +1042,14 @@ pub enum ErrorReason {
     /// RESOURCE_EXHAUSTED: the environment is at a quota (cells, sandboxes or volume
     /// bytes). Refused at once, never queued; the message names the quota.
     QuotaExceeded = 16,
+    /// FAILED_PRECONDITION: the organization has no credit, no card on file or a failed
+    /// charge past its grace, so nothing new is placed. Running sandboxes finish; credit
+    /// added resumes placements within a minute. The message says which.
+    CreditExhausted = 17,
+    /// UNAVAILABLE: the control plane cannot answer now; try again (never "your key is wrong").
+    NotReady = 18,
+    /// PERMISSION_DENIED: the sign-up is closed.
+    SignUpClosed = 19,
 }
 impl ErrorReason {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -591,6 +1075,9 @@ impl ErrorReason {
             Self::NoSuchTemplate => "NO_SUCH_TEMPLATE",
             Self::VolumeBusy => "VOLUME_BUSY",
             Self::QuotaExceeded => "QUOTA_EXCEEDED",
+            Self::CreditExhausted => "CREDIT_EXHAUSTED",
+            Self::NotReady => "NOT_READY",
+            Self::SignUpClosed => "SIGN_UP_CLOSED",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -613,6 +1100,9 @@ impl ErrorReason {
             "NO_SUCH_TEMPLATE" => Some(Self::NoSuchTemplate),
             "VOLUME_BUSY" => Some(Self::VolumeBusy),
             "QUOTA_EXCEEDED" => Some(Self::QuotaExceeded),
+            "CREDIT_EXHAUSTED" => Some(Self::CreditExhausted),
+            "NOT_READY" => Some(Self::NotReady),
+            "SIGN_UP_CLOSED" => Some(Self::SignUpClosed),
             _ => None,
         }
     }
@@ -2980,6 +3470,2241 @@ pub mod cell_channel_server {
     /// Generated gRPC service name
     pub const SERVICE_NAME: &str = "clovelly.control.v1.CellChannel";
     impl<T> tonic::server::NamedService for CellChannelServer<T> {
+        const NAME: &'static str = SERVICE_NAME;
+    }
+}
+/// Generated client implementations.
+pub mod account_client {
+    #![allow(
+        unused_variables,
+        dead_code,
+        missing_docs,
+        clippy::wildcard_imports,
+        clippy::let_unit_value,
+    )]
+    use tonic::codegen::*;
+    use tonic::codegen::http::Uri;
+    /// The customer's account: organizations, members, API keys, the usage and billing tables.
+    /// Every call carries "authorization: Bearer <token>", one of three. An API key
+    /// (clv\_<env>\_<random>), scoped to one environment, role read_write or read_only, does what a
+    /// member of that role may do in that environment, and never an organization-wide mutation
+    /// (members, billing, new environments). A console token, signed with a key the control plane
+    /// holds, is a session token (reads, 8 hours), an action token (one action in one environment,
+    /// 5 minutes, single use) or an identity token (SignIn and SignUp only, 5 minutes). The operator
+    /// token does anything.
+    ///
+    /// A member's role decides what a console token may do: owner everything; admin every mutation
+    /// but billing and members; developer keys and pools in the environments it is granted; read_only
+    /// nothing that changes anything.
+    #[derive(Debug, Clone)]
+    pub struct AccountClient<T> {
+        inner: tonic::client::Grpc<T>,
+    }
+    impl AccountClient<tonic::transport::Channel> {
+        /// Attempt to create a new client by connecting to a given endpoint.
+        pub async fn connect<D>(dst: D) -> Result<Self, tonic::transport::Error>
+        where
+            D: TryInto<tonic::transport::Endpoint>,
+            D::Error: Into<StdError>,
+        {
+            let conn = tonic::transport::Endpoint::new(dst)?.connect().await?;
+            Ok(Self::new(conn))
+        }
+    }
+    impl<T> AccountClient<T>
+    where
+        T: tonic::client::GrpcService<tonic::body::Body>,
+        T::Error: Into<StdError>,
+        T::ResponseBody: Body<Data = Bytes> + std::marker::Send + 'static,
+        <T::ResponseBody as Body>::Error: Into<StdError> + std::marker::Send,
+    {
+        pub fn new(inner: T) -> Self {
+            let inner = tonic::client::Grpc::new(inner);
+            Self { inner }
+        }
+        pub fn with_origin(inner: T, origin: Uri) -> Self {
+            let inner = tonic::client::Grpc::with_origin(inner, origin);
+            Self { inner }
+        }
+        pub fn with_interceptor<F>(
+            inner: T,
+            interceptor: F,
+        ) -> AccountClient<InterceptedService<T, F>>
+        where
+            F: tonic::service::Interceptor,
+            T::ResponseBody: Default,
+            T: tonic::codegen::Service<
+                http::Request<tonic::body::Body>,
+                Response = http::Response<
+                    <T as tonic::client::GrpcService<tonic::body::Body>>::ResponseBody,
+                >,
+            >,
+            <T as tonic::codegen::Service<
+                http::Request<tonic::body::Body>,
+            >>::Error: Into<StdError> + std::marker::Send + std::marker::Sync,
+        {
+            AccountClient::new(InterceptedService::new(inner, interceptor))
+        }
+        /// Compress requests with the given encoding.
+        ///
+        /// This requires the server to support it otherwise it might respond with an
+        /// error.
+        #[must_use]
+        pub fn send_compressed(mut self, encoding: CompressionEncoding) -> Self {
+            self.inner = self.inner.send_compressed(encoding);
+            self
+        }
+        /// Enable decompressing responses.
+        #[must_use]
+        pub fn accept_compressed(mut self, encoding: CompressionEncoding) -> Self {
+            self.inner = self.inner.accept_compressed(encoding);
+            self
+        }
+        /// Limits the maximum size of a decoded message.
+        ///
+        /// Default: `4MB`
+        #[must_use]
+        pub fn max_decoding_message_size(mut self, limit: usize) -> Self {
+            self.inner = self.inner.max_decoding_message_size(limit);
+            self
+        }
+        /// Limits the maximum size of an encoded message.
+        ///
+        /// Default: `usize::MAX`
+        #[must_use]
+        pub fn max_encoding_message_size(mut self, limit: usize) -> Self {
+            self.inner = self.inner.max_encoding_message_size(limit);
+            self
+        }
+        /// Who the caller is: joins any invitation for its verified email and returns its
+        /// organization, if it has one. Identity token.
+        pub async fn sign_in(
+            &mut self,
+            request: impl tonic::IntoRequest<super::SignInRequest>,
+        ) -> std::result::Result<tonic::Response<super::SignInResponse>, tonic::Status> {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/clovelly.control.v1.Account/SignIn",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("clovelly.control.v1.Account", "SignIn"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Creates an organization with the caller as its owner, or puts the caller on the
+        /// waitlist. Identity token.
+        pub async fn sign_up(
+            &mut self,
+            request: impl tonic::IntoRequest<super::SignUpRequest>,
+        ) -> std::result::Result<tonic::Response<super::SignUpResponse>, tonic::Status> {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/clovelly.control.v1.Account/SignUp",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("clovelly.control.v1.Account", "SignUp"));
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn get_org(
+            &mut self,
+            request: impl tonic::IntoRequest<super::GetOrgRequest>,
+        ) -> std::result::Result<tonic::Response<super::Org>, tonic::Status> {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/clovelly.control.v1.Account/GetOrg",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("clovelly.control.v1.Account", "GetOrg"));
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn delete_org(
+            &mut self,
+            request: impl tonic::IntoRequest<super::DeleteOrgRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::DeleteOrgResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/clovelly.control.v1.Account/DeleteOrg",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("clovelly.control.v1.Account", "DeleteOrg"));
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn list_audit(
+            &mut self,
+            request: impl tonic::IntoRequest<super::ListAuditRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::ListAuditResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/clovelly.control.v1.Account/ListAudit",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("clovelly.control.v1.Account", "ListAudit"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Whether a verifier URL answers and serves this environment's CA.
+        pub async fn check_verifier(
+            &mut self,
+            request: impl tonic::IntoRequest<super::CheckVerifierRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::CheckVerifierResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/clovelly.control.v1.Account/CheckVerifier",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("clovelly.control.v1.Account", "CheckVerifier"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Creates an environment in the caller's organization and issues its first API key.
+        pub async fn create_environment(
+            &mut self,
+            request: impl tonic::IntoRequest<super::CreateEnvironmentRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::CreateEnvironmentResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/clovelly.control.v1.Account/CreateEnvironment",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(
+                    GrpcMethod::new("clovelly.control.v1.Account", "CreateEnvironment"),
+                );
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn list_subenvironments(
+            &mut self,
+            request: impl tonic::IntoRequest<super::EnvRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::ListSubenvironmentsResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/clovelly.control.v1.Account/ListSubenvironments",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(
+                    GrpcMethod::new("clovelly.control.v1.Account", "ListSubenvironments"),
+                );
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn list_placements(
+            &mut self,
+            request: impl tonic::IntoRequest<super::EnvRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::ListPlacementsResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/clovelly.control.v1.Account/ListPlacements",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(
+                    GrpcMethod::new("clovelly.control.v1.Account", "ListPlacements"),
+                );
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn list_cells(
+            &mut self,
+            request: impl tonic::IntoRequest<super::EnvRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::ListCellsResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/clovelly.control.v1.Account/ListCells",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("clovelly.control.v1.Account", "ListCells"));
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn list_templates(
+            &mut self,
+            request: impl tonic::IntoRequest<super::EnvRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::ListTemplatesResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/clovelly.control.v1.Account/ListTemplates",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("clovelly.control.v1.Account", "ListTemplates"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// A month of cell-minutes per sub-environment and day, and the peak of concurrent
+        /// sandboxes per day.
+        pub async fn get_daily_usage(
+            &mut self,
+            request: impl tonic::IntoRequest<super::GetDailyUsageRequest>,
+        ) -> std::result::Result<tonic::Response<super::DailyUsage>, tonic::Status> {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/clovelly.control.v1.Account/GetDailyUsage",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("clovelly.control.v1.Account", "GetDailyUsage"));
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn list_keys(
+            &mut self,
+            request: impl tonic::IntoRequest<super::EnvRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::ListKeysResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/clovelly.control.v1.Account/ListKeys",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("clovelly.control.v1.Account", "ListKeys"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// The plaintext appears in this response once; only its SHA-256 is stored.
+        pub async fn create_key(
+            &mut self,
+            request: impl tonic::IntoRequest<super::CreateKeyRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::CreateKeyResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/clovelly.control.v1.Account/CreateKey",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("clovelly.control.v1.Account", "CreateKey"));
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn revoke_key(
+            &mut self,
+            request: impl tonic::IntoRequest<super::RevokeKeyRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::RevokeKeyResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/clovelly.control.v1.Account/RevokeKey",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("clovelly.control.v1.Account", "RevokeKey"));
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn list_members(
+            &mut self,
+            request: impl tonic::IntoRequest<super::ListMembersRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::ListMembersResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/clovelly.control.v1.Account/ListMembers",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("clovelly.control.v1.Account", "ListMembers"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Sends an invitation by email; inviting the same email again sends it again.
+        pub async fn invite_member(
+            &mut self,
+            request: impl tonic::IntoRequest<super::InviteMemberRequest>,
+        ) -> std::result::Result<tonic::Response<super::Invitation>, tonic::Status> {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/clovelly.control.v1.Account/InviteMember",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("clovelly.control.v1.Account", "InviteMember"));
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn revoke_invitation(
+            &mut self,
+            request: impl tonic::IntoRequest<super::RevokeInvitationRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::RevokeInvitationResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/clovelly.control.v1.Account/RevokeInvitation",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(
+                    GrpcMethod::new("clovelly.control.v1.Account", "RevokeInvitation"),
+                );
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn set_member(
+            &mut self,
+            request: impl tonic::IntoRequest<super::SetMemberRequest>,
+        ) -> std::result::Result<tonic::Response<super::Member>, tonic::Status> {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/clovelly.control.v1.Account/SetMember",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("clovelly.control.v1.Account", "SetMember"));
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn remove_member(
+            &mut self,
+            request: impl tonic::IntoRequest<super::RemoveMemberRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::RemoveMemberResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/clovelly.control.v1.Account/RemoveMember",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("clovelly.control.v1.Account", "RemoveMember"));
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn get_billing(
+            &mut self,
+            request: impl tonic::IntoRequest<super::GetBillingRequest>,
+        ) -> std::result::Result<tonic::Response<super::Billing>, tonic::Status> {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/clovelly.control.v1.Account/GetBilling",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("clovelly.control.v1.Account", "GetBilling"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Stripe's hosted page that saves a card.
+        pub async fn card_setup(
+            &mut self,
+            request: impl tonic::IntoRequest<super::CardSetupRequest>,
+        ) -> std::result::Result<tonic::Response<super::HostedPage>, tonic::Status> {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/clovelly.control.v1.Account/CardSetup",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("clovelly.control.v1.Account", "CardSetup"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Asks Stripe whether a card is saved; the first one starts billing.
+        pub async fn confirm_card(
+            &mut self,
+            request: impl tonic::IntoRequest<super::ConfirmCardRequest>,
+        ) -> std::result::Result<tonic::Response<super::Billing>, tonic::Status> {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/clovelly.control.v1.Account/ConfirmCard",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("clovelly.control.v1.Account", "ConfirmCard"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Stripe's portal: the card and each charge's receipt.
+        pub async fn billing_portal(
+            &mut self,
+            request: impl tonic::IntoRequest<super::CardSetupRequest>,
+        ) -> std::result::Result<tonic::Response<super::HostedPage>, tonic::Status> {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/clovelly.control.v1.Account/BillingPortal",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("clovelly.control.v1.Account", "BillingPortal"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Charges the card for credit, at least $10, once per request id.
+        pub async fn buy_credit(
+            &mut self,
+            request: impl tonic::IntoRequest<super::BuyCreditRequest>,
+        ) -> std::result::Result<tonic::Response<super::Billing>, tonic::Status> {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/clovelly.control.v1.Account/BuyCredit",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("clovelly.control.v1.Account", "BuyCredit"));
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn set_auto_recharge(
+            &mut self,
+            request: impl tonic::IntoRequest<super::SetAutoRechargeRequest>,
+        ) -> std::result::Result<tonic::Response<super::Billing>, tonic::Status> {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/clovelly.control.v1.Account/SetAutoRecharge",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(
+                    GrpcMethod::new("clovelly.control.v1.Account", "SetAutoRecharge"),
+                );
+            self.inner.unary(req, path, codec).await
+        }
+        /// Stripe's webhook, forwarded unread by the console. Authenticated by its signature.
+        pub async fn stripe_webhook(
+            &mut self,
+            request: impl tonic::IntoRequest<super::StripeWebhookRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::StripeWebhookResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/clovelly.control.v1.Account/StripeWebhook",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("clovelly.control.v1.Account", "StripeWebhook"));
+            self.inner.unary(req, path, codec).await
+        }
+    }
+}
+/// Generated server implementations.
+pub mod account_server {
+    #![allow(
+        unused_variables,
+        dead_code,
+        missing_docs,
+        clippy::wildcard_imports,
+        clippy::let_unit_value,
+    )]
+    use tonic::codegen::*;
+    /// Generated trait containing gRPC methods that should be implemented for use with AccountServer.
+    #[async_trait]
+    pub trait Account: std::marker::Send + std::marker::Sync + 'static {
+        /// Who the caller is: joins any invitation for its verified email and returns its
+        /// organization, if it has one. Identity token.
+        async fn sign_in(
+            &self,
+            request: tonic::Request<super::SignInRequest>,
+        ) -> std::result::Result<tonic::Response<super::SignInResponse>, tonic::Status>;
+        /// Creates an organization with the caller as its owner, or puts the caller on the
+        /// waitlist. Identity token.
+        async fn sign_up(
+            &self,
+            request: tonic::Request<super::SignUpRequest>,
+        ) -> std::result::Result<tonic::Response<super::SignUpResponse>, tonic::Status>;
+        async fn get_org(
+            &self,
+            request: tonic::Request<super::GetOrgRequest>,
+        ) -> std::result::Result<tonic::Response<super::Org>, tonic::Status>;
+        async fn delete_org(
+            &self,
+            request: tonic::Request<super::DeleteOrgRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::DeleteOrgResponse>,
+            tonic::Status,
+        >;
+        async fn list_audit(
+            &self,
+            request: tonic::Request<super::ListAuditRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::ListAuditResponse>,
+            tonic::Status,
+        >;
+        /// Whether a verifier URL answers and serves this environment's CA.
+        async fn check_verifier(
+            &self,
+            request: tonic::Request<super::CheckVerifierRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::CheckVerifierResponse>,
+            tonic::Status,
+        >;
+        /// Creates an environment in the caller's organization and issues its first API key.
+        async fn create_environment(
+            &self,
+            request: tonic::Request<super::CreateEnvironmentRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::CreateEnvironmentResponse>,
+            tonic::Status,
+        >;
+        async fn list_subenvironments(
+            &self,
+            request: tonic::Request<super::EnvRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::ListSubenvironmentsResponse>,
+            tonic::Status,
+        >;
+        async fn list_placements(
+            &self,
+            request: tonic::Request<super::EnvRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::ListPlacementsResponse>,
+            tonic::Status,
+        >;
+        async fn list_cells(
+            &self,
+            request: tonic::Request<super::EnvRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::ListCellsResponse>,
+            tonic::Status,
+        >;
+        async fn list_templates(
+            &self,
+            request: tonic::Request<super::EnvRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::ListTemplatesResponse>,
+            tonic::Status,
+        >;
+        /// A month of cell-minutes per sub-environment and day, and the peak of concurrent
+        /// sandboxes per day.
+        async fn get_daily_usage(
+            &self,
+            request: tonic::Request<super::GetDailyUsageRequest>,
+        ) -> std::result::Result<tonic::Response<super::DailyUsage>, tonic::Status>;
+        async fn list_keys(
+            &self,
+            request: tonic::Request<super::EnvRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::ListKeysResponse>,
+            tonic::Status,
+        >;
+        /// The plaintext appears in this response once; only its SHA-256 is stored.
+        async fn create_key(
+            &self,
+            request: tonic::Request<super::CreateKeyRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::CreateKeyResponse>,
+            tonic::Status,
+        >;
+        async fn revoke_key(
+            &self,
+            request: tonic::Request<super::RevokeKeyRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::RevokeKeyResponse>,
+            tonic::Status,
+        >;
+        async fn list_members(
+            &self,
+            request: tonic::Request<super::ListMembersRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::ListMembersResponse>,
+            tonic::Status,
+        >;
+        /// Sends an invitation by email; inviting the same email again sends it again.
+        async fn invite_member(
+            &self,
+            request: tonic::Request<super::InviteMemberRequest>,
+        ) -> std::result::Result<tonic::Response<super::Invitation>, tonic::Status>;
+        async fn revoke_invitation(
+            &self,
+            request: tonic::Request<super::RevokeInvitationRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::RevokeInvitationResponse>,
+            tonic::Status,
+        >;
+        async fn set_member(
+            &self,
+            request: tonic::Request<super::SetMemberRequest>,
+        ) -> std::result::Result<tonic::Response<super::Member>, tonic::Status>;
+        async fn remove_member(
+            &self,
+            request: tonic::Request<super::RemoveMemberRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::RemoveMemberResponse>,
+            tonic::Status,
+        >;
+        async fn get_billing(
+            &self,
+            request: tonic::Request<super::GetBillingRequest>,
+        ) -> std::result::Result<tonic::Response<super::Billing>, tonic::Status>;
+        /// Stripe's hosted page that saves a card.
+        async fn card_setup(
+            &self,
+            request: tonic::Request<super::CardSetupRequest>,
+        ) -> std::result::Result<tonic::Response<super::HostedPage>, tonic::Status>;
+        /// Asks Stripe whether a card is saved; the first one starts billing.
+        async fn confirm_card(
+            &self,
+            request: tonic::Request<super::ConfirmCardRequest>,
+        ) -> std::result::Result<tonic::Response<super::Billing>, tonic::Status>;
+        /// Stripe's portal: the card and each charge's receipt.
+        async fn billing_portal(
+            &self,
+            request: tonic::Request<super::CardSetupRequest>,
+        ) -> std::result::Result<tonic::Response<super::HostedPage>, tonic::Status>;
+        /// Charges the card for credit, at least $10, once per request id.
+        async fn buy_credit(
+            &self,
+            request: tonic::Request<super::BuyCreditRequest>,
+        ) -> std::result::Result<tonic::Response<super::Billing>, tonic::Status>;
+        async fn set_auto_recharge(
+            &self,
+            request: tonic::Request<super::SetAutoRechargeRequest>,
+        ) -> std::result::Result<tonic::Response<super::Billing>, tonic::Status>;
+        /// Stripe's webhook, forwarded unread by the console. Authenticated by its signature.
+        async fn stripe_webhook(
+            &self,
+            request: tonic::Request<super::StripeWebhookRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::StripeWebhookResponse>,
+            tonic::Status,
+        >;
+    }
+    /// The customer's account: organizations, members, API keys, the usage and billing tables.
+    /// Every call carries "authorization: Bearer <token>", one of three. An API key
+    /// (clv\_<env>\_<random>), scoped to one environment, role read_write or read_only, does what a
+    /// member of that role may do in that environment, and never an organization-wide mutation
+    /// (members, billing, new environments). A console token, signed with a key the control plane
+    /// holds, is a session token (reads, 8 hours), an action token (one action in one environment,
+    /// 5 minutes, single use) or an identity token (SignIn and SignUp only, 5 minutes). The operator
+    /// token does anything.
+    ///
+    /// A member's role decides what a console token may do: owner everything; admin every mutation
+    /// but billing and members; developer keys and pools in the environments it is granted; read_only
+    /// nothing that changes anything.
+    #[derive(Debug)]
+    pub struct AccountServer<T> {
+        inner: Arc<T>,
+        accept_compression_encodings: EnabledCompressionEncodings,
+        send_compression_encodings: EnabledCompressionEncodings,
+        max_decoding_message_size: Option<usize>,
+        max_encoding_message_size: Option<usize>,
+    }
+    impl<T> AccountServer<T> {
+        pub fn new(inner: T) -> Self {
+            Self::from_arc(Arc::new(inner))
+        }
+        pub fn from_arc(inner: Arc<T>) -> Self {
+            Self {
+                inner,
+                accept_compression_encodings: Default::default(),
+                send_compression_encodings: Default::default(),
+                max_decoding_message_size: None,
+                max_encoding_message_size: None,
+            }
+        }
+        pub fn with_interceptor<F>(
+            inner: T,
+            interceptor: F,
+        ) -> InterceptedService<Self, F>
+        where
+            F: tonic::service::Interceptor,
+        {
+            InterceptedService::new(Self::new(inner), interceptor)
+        }
+        /// Enable decompressing requests with the given encoding.
+        #[must_use]
+        pub fn accept_compressed(mut self, encoding: CompressionEncoding) -> Self {
+            self.accept_compression_encodings.enable(encoding);
+            self
+        }
+        /// Compress responses with the given encoding, if the client supports it.
+        #[must_use]
+        pub fn send_compressed(mut self, encoding: CompressionEncoding) -> Self {
+            self.send_compression_encodings.enable(encoding);
+            self
+        }
+        /// Limits the maximum size of a decoded message.
+        ///
+        /// Default: `4MB`
+        #[must_use]
+        pub fn max_decoding_message_size(mut self, limit: usize) -> Self {
+            self.max_decoding_message_size = Some(limit);
+            self
+        }
+        /// Limits the maximum size of an encoded message.
+        ///
+        /// Default: `usize::MAX`
+        #[must_use]
+        pub fn max_encoding_message_size(mut self, limit: usize) -> Self {
+            self.max_encoding_message_size = Some(limit);
+            self
+        }
+    }
+    impl<T, B> tonic::codegen::Service<http::Request<B>> for AccountServer<T>
+    where
+        T: Account,
+        B: Body + std::marker::Send + 'static,
+        B::Error: Into<StdError> + std::marker::Send + 'static,
+    {
+        type Response = http::Response<tonic::body::Body>;
+        type Error = std::convert::Infallible;
+        type Future = BoxFuture<Self::Response, Self::Error>;
+        fn poll_ready(
+            &mut self,
+            _cx: &mut Context<'_>,
+        ) -> Poll<std::result::Result<(), Self::Error>> {
+            Poll::Ready(Ok(()))
+        }
+        fn call(&mut self, req: http::Request<B>) -> Self::Future {
+            match req.uri().path() {
+                "/clovelly.control.v1.Account/SignIn" => {
+                    #[allow(non_camel_case_types)]
+                    struct SignInSvc<T: Account>(pub Arc<T>);
+                    impl<T: Account> tonic::server::UnaryService<super::SignInRequest>
+                    for SignInSvc<T> {
+                        type Response = super::SignInResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::SignInRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Account>::sign_in(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = SignInSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/clovelly.control.v1.Account/SignUp" => {
+                    #[allow(non_camel_case_types)]
+                    struct SignUpSvc<T: Account>(pub Arc<T>);
+                    impl<T: Account> tonic::server::UnaryService<super::SignUpRequest>
+                    for SignUpSvc<T> {
+                        type Response = super::SignUpResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::SignUpRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Account>::sign_up(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = SignUpSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/clovelly.control.v1.Account/GetOrg" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetOrgSvc<T: Account>(pub Arc<T>);
+                    impl<T: Account> tonic::server::UnaryService<super::GetOrgRequest>
+                    for GetOrgSvc<T> {
+                        type Response = super::Org;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::GetOrgRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Account>::get_org(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetOrgSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/clovelly.control.v1.Account/DeleteOrg" => {
+                    #[allow(non_camel_case_types)]
+                    struct DeleteOrgSvc<T: Account>(pub Arc<T>);
+                    impl<T: Account> tonic::server::UnaryService<super::DeleteOrgRequest>
+                    for DeleteOrgSvc<T> {
+                        type Response = super::DeleteOrgResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::DeleteOrgRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Account>::delete_org(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = DeleteOrgSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/clovelly.control.v1.Account/ListAudit" => {
+                    #[allow(non_camel_case_types)]
+                    struct ListAuditSvc<T: Account>(pub Arc<T>);
+                    impl<T: Account> tonic::server::UnaryService<super::ListAuditRequest>
+                    for ListAuditSvc<T> {
+                        type Response = super::ListAuditResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::ListAuditRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Account>::list_audit(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = ListAuditSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/clovelly.control.v1.Account/CheckVerifier" => {
+                    #[allow(non_camel_case_types)]
+                    struct CheckVerifierSvc<T: Account>(pub Arc<T>);
+                    impl<
+                        T: Account,
+                    > tonic::server::UnaryService<super::CheckVerifierRequest>
+                    for CheckVerifierSvc<T> {
+                        type Response = super::CheckVerifierResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::CheckVerifierRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Account>::check_verifier(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = CheckVerifierSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/clovelly.control.v1.Account/CreateEnvironment" => {
+                    #[allow(non_camel_case_types)]
+                    struct CreateEnvironmentSvc<T: Account>(pub Arc<T>);
+                    impl<
+                        T: Account,
+                    > tonic::server::UnaryService<super::CreateEnvironmentRequest>
+                    for CreateEnvironmentSvc<T> {
+                        type Response = super::CreateEnvironmentResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::CreateEnvironmentRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Account>::create_environment(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = CreateEnvironmentSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/clovelly.control.v1.Account/ListSubenvironments" => {
+                    #[allow(non_camel_case_types)]
+                    struct ListSubenvironmentsSvc<T: Account>(pub Arc<T>);
+                    impl<T: Account> tonic::server::UnaryService<super::EnvRequest>
+                    for ListSubenvironmentsSvc<T> {
+                        type Response = super::ListSubenvironmentsResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::EnvRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Account>::list_subenvironments(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = ListSubenvironmentsSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/clovelly.control.v1.Account/ListPlacements" => {
+                    #[allow(non_camel_case_types)]
+                    struct ListPlacementsSvc<T: Account>(pub Arc<T>);
+                    impl<T: Account> tonic::server::UnaryService<super::EnvRequest>
+                    for ListPlacementsSvc<T> {
+                        type Response = super::ListPlacementsResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::EnvRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Account>::list_placements(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = ListPlacementsSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/clovelly.control.v1.Account/ListCells" => {
+                    #[allow(non_camel_case_types)]
+                    struct ListCellsSvc<T: Account>(pub Arc<T>);
+                    impl<T: Account> tonic::server::UnaryService<super::EnvRequest>
+                    for ListCellsSvc<T> {
+                        type Response = super::ListCellsResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::EnvRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Account>::list_cells(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = ListCellsSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/clovelly.control.v1.Account/ListTemplates" => {
+                    #[allow(non_camel_case_types)]
+                    struct ListTemplatesSvc<T: Account>(pub Arc<T>);
+                    impl<T: Account> tonic::server::UnaryService<super::EnvRequest>
+                    for ListTemplatesSvc<T> {
+                        type Response = super::ListTemplatesResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::EnvRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Account>::list_templates(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = ListTemplatesSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/clovelly.control.v1.Account/GetDailyUsage" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetDailyUsageSvc<T: Account>(pub Arc<T>);
+                    impl<
+                        T: Account,
+                    > tonic::server::UnaryService<super::GetDailyUsageRequest>
+                    for GetDailyUsageSvc<T> {
+                        type Response = super::DailyUsage;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::GetDailyUsageRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Account>::get_daily_usage(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetDailyUsageSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/clovelly.control.v1.Account/ListKeys" => {
+                    #[allow(non_camel_case_types)]
+                    struct ListKeysSvc<T: Account>(pub Arc<T>);
+                    impl<T: Account> tonic::server::UnaryService<super::EnvRequest>
+                    for ListKeysSvc<T> {
+                        type Response = super::ListKeysResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::EnvRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Account>::list_keys(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = ListKeysSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/clovelly.control.v1.Account/CreateKey" => {
+                    #[allow(non_camel_case_types)]
+                    struct CreateKeySvc<T: Account>(pub Arc<T>);
+                    impl<T: Account> tonic::server::UnaryService<super::CreateKeyRequest>
+                    for CreateKeySvc<T> {
+                        type Response = super::CreateKeyResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::CreateKeyRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Account>::create_key(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = CreateKeySvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/clovelly.control.v1.Account/RevokeKey" => {
+                    #[allow(non_camel_case_types)]
+                    struct RevokeKeySvc<T: Account>(pub Arc<T>);
+                    impl<T: Account> tonic::server::UnaryService<super::RevokeKeyRequest>
+                    for RevokeKeySvc<T> {
+                        type Response = super::RevokeKeyResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::RevokeKeyRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Account>::revoke_key(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = RevokeKeySvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/clovelly.control.v1.Account/ListMembers" => {
+                    #[allow(non_camel_case_types)]
+                    struct ListMembersSvc<T: Account>(pub Arc<T>);
+                    impl<
+                        T: Account,
+                    > tonic::server::UnaryService<super::ListMembersRequest>
+                    for ListMembersSvc<T> {
+                        type Response = super::ListMembersResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::ListMembersRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Account>::list_members(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = ListMembersSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/clovelly.control.v1.Account/InviteMember" => {
+                    #[allow(non_camel_case_types)]
+                    struct InviteMemberSvc<T: Account>(pub Arc<T>);
+                    impl<
+                        T: Account,
+                    > tonic::server::UnaryService<super::InviteMemberRequest>
+                    for InviteMemberSvc<T> {
+                        type Response = super::Invitation;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::InviteMemberRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Account>::invite_member(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = InviteMemberSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/clovelly.control.v1.Account/RevokeInvitation" => {
+                    #[allow(non_camel_case_types)]
+                    struct RevokeInvitationSvc<T: Account>(pub Arc<T>);
+                    impl<
+                        T: Account,
+                    > tonic::server::UnaryService<super::RevokeInvitationRequest>
+                    for RevokeInvitationSvc<T> {
+                        type Response = super::RevokeInvitationResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::RevokeInvitationRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Account>::revoke_invitation(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = RevokeInvitationSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/clovelly.control.v1.Account/SetMember" => {
+                    #[allow(non_camel_case_types)]
+                    struct SetMemberSvc<T: Account>(pub Arc<T>);
+                    impl<T: Account> tonic::server::UnaryService<super::SetMemberRequest>
+                    for SetMemberSvc<T> {
+                        type Response = super::Member;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::SetMemberRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Account>::set_member(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = SetMemberSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/clovelly.control.v1.Account/RemoveMember" => {
+                    #[allow(non_camel_case_types)]
+                    struct RemoveMemberSvc<T: Account>(pub Arc<T>);
+                    impl<
+                        T: Account,
+                    > tonic::server::UnaryService<super::RemoveMemberRequest>
+                    for RemoveMemberSvc<T> {
+                        type Response = super::RemoveMemberResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::RemoveMemberRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Account>::remove_member(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = RemoveMemberSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/clovelly.control.v1.Account/GetBilling" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetBillingSvc<T: Account>(pub Arc<T>);
+                    impl<
+                        T: Account,
+                    > tonic::server::UnaryService<super::GetBillingRequest>
+                    for GetBillingSvc<T> {
+                        type Response = super::Billing;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::GetBillingRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Account>::get_billing(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetBillingSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/clovelly.control.v1.Account/CardSetup" => {
+                    #[allow(non_camel_case_types)]
+                    struct CardSetupSvc<T: Account>(pub Arc<T>);
+                    impl<T: Account> tonic::server::UnaryService<super::CardSetupRequest>
+                    for CardSetupSvc<T> {
+                        type Response = super::HostedPage;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::CardSetupRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Account>::card_setup(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = CardSetupSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/clovelly.control.v1.Account/ConfirmCard" => {
+                    #[allow(non_camel_case_types)]
+                    struct ConfirmCardSvc<T: Account>(pub Arc<T>);
+                    impl<
+                        T: Account,
+                    > tonic::server::UnaryService<super::ConfirmCardRequest>
+                    for ConfirmCardSvc<T> {
+                        type Response = super::Billing;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::ConfirmCardRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Account>::confirm_card(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = ConfirmCardSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/clovelly.control.v1.Account/BillingPortal" => {
+                    #[allow(non_camel_case_types)]
+                    struct BillingPortalSvc<T: Account>(pub Arc<T>);
+                    impl<T: Account> tonic::server::UnaryService<super::CardSetupRequest>
+                    for BillingPortalSvc<T> {
+                        type Response = super::HostedPage;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::CardSetupRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Account>::billing_portal(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = BillingPortalSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/clovelly.control.v1.Account/BuyCredit" => {
+                    #[allow(non_camel_case_types)]
+                    struct BuyCreditSvc<T: Account>(pub Arc<T>);
+                    impl<T: Account> tonic::server::UnaryService<super::BuyCreditRequest>
+                    for BuyCreditSvc<T> {
+                        type Response = super::Billing;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::BuyCreditRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Account>::buy_credit(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = BuyCreditSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/clovelly.control.v1.Account/SetAutoRecharge" => {
+                    #[allow(non_camel_case_types)]
+                    struct SetAutoRechargeSvc<T: Account>(pub Arc<T>);
+                    impl<
+                        T: Account,
+                    > tonic::server::UnaryService<super::SetAutoRechargeRequest>
+                    for SetAutoRechargeSvc<T> {
+                        type Response = super::Billing;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::SetAutoRechargeRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Account>::set_auto_recharge(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = SetAutoRechargeSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/clovelly.control.v1.Account/StripeWebhook" => {
+                    #[allow(non_camel_case_types)]
+                    struct StripeWebhookSvc<T: Account>(pub Arc<T>);
+                    impl<
+                        T: Account,
+                    > tonic::server::UnaryService<super::StripeWebhookRequest>
+                    for StripeWebhookSvc<T> {
+                        type Response = super::StripeWebhookResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::StripeWebhookRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Account>::stripe_webhook(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = StripeWebhookSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                _ => {
+                    Box::pin(async move {
+                        let mut response = http::Response::new(
+                            tonic::body::Body::default(),
+                        );
+                        let headers = response.headers_mut();
+                        headers
+                            .insert(
+                                tonic::Status::GRPC_STATUS,
+                                (tonic::Code::Unimplemented as i32).into(),
+                            );
+                        headers
+                            .insert(
+                                http::header::CONTENT_TYPE,
+                                tonic::metadata::GRPC_CONTENT_TYPE,
+                            );
+                        Ok(response)
+                    })
+                }
+            }
+        }
+    }
+    impl<T> Clone for AccountServer<T> {
+        fn clone(&self) -> Self {
+            let inner = self.inner.clone();
+            Self {
+                inner,
+                accept_compression_encodings: self.accept_compression_encodings,
+                send_compression_encodings: self.send_compression_encodings,
+                max_decoding_message_size: self.max_decoding_message_size,
+                max_encoding_message_size: self.max_encoding_message_size,
+            }
+        }
+    }
+    /// Generated gRPC service name
+    pub const SERVICE_NAME: &str = "clovelly.control.v1.Account";
+    impl<T> tonic::server::NamedService for AccountServer<T> {
         const NAME: &'static str = SERVICE_NAME;
     }
 }

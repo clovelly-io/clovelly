@@ -1190,3 +1190,1244 @@ class CellChannel(object):
             timeout,
             metadata,
             _registered_method=True)
+
+
+class AccountStub(object):
+    """The customer's account: organizations, members, API keys, the usage and billing tables.
+    Every call carries "authorization: Bearer <token>", one of three. An API key
+    (clv_<env>_<random>), scoped to one environment, role read_write or read_only, does what a
+    member of that role may do in that environment, and never an organization-wide mutation
+    (members, billing, new environments). A console token, signed with a key the control plane
+    holds, is a session token (reads, 8 hours), an action token (one action in one environment,
+    5 minutes, single use) or an identity token (SignIn and SignUp only, 5 minutes). The operator
+    token does anything.
+
+    A member's role decides what a console token may do: owner everything; admin every mutation
+    but billing and members; developer keys and pools in the environments it is granted; read_only
+    nothing that changes anything.
+    """
+
+    def __init__(self, channel):
+        """Constructor.
+
+        Args:
+            channel: A grpc.Channel.
+        """
+        self.SignIn = channel.unary_unary(
+                '/clovelly.control.v1.Account/SignIn',
+                request_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.SignInRequest.SerializeToString,
+                response_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.SignInResponse.FromString,
+                _registered_method=True)
+        self.SignUp = channel.unary_unary(
+                '/clovelly.control.v1.Account/SignUp',
+                request_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.SignUpRequest.SerializeToString,
+                response_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.SignUpResponse.FromString,
+                _registered_method=True)
+        self.GetOrg = channel.unary_unary(
+                '/clovelly.control.v1.Account/GetOrg',
+                request_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.GetOrgRequest.SerializeToString,
+                response_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.Org.FromString,
+                _registered_method=True)
+        self.DeleteOrg = channel.unary_unary(
+                '/clovelly.control.v1.Account/DeleteOrg',
+                request_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.DeleteOrgRequest.SerializeToString,
+                response_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.DeleteOrgResponse.FromString,
+                _registered_method=True)
+        self.ListAudit = channel.unary_unary(
+                '/clovelly.control.v1.Account/ListAudit',
+                request_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.ListAuditRequest.SerializeToString,
+                response_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.ListAuditResponse.FromString,
+                _registered_method=True)
+        self.CheckVerifier = channel.unary_unary(
+                '/clovelly.control.v1.Account/CheckVerifier',
+                request_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.CheckVerifierRequest.SerializeToString,
+                response_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.CheckVerifierResponse.FromString,
+                _registered_method=True)
+        self.CreateEnvironment = channel.unary_unary(
+                '/clovelly.control.v1.Account/CreateEnvironment',
+                request_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.CreateEnvironmentRequest.SerializeToString,
+                response_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.CreateEnvironmentResponse.FromString,
+                _registered_method=True)
+        self.ListSubenvironments = channel.unary_unary(
+                '/clovelly.control.v1.Account/ListSubenvironments',
+                request_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.EnvRequest.SerializeToString,
+                response_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.ListSubenvironmentsResponse.FromString,
+                _registered_method=True)
+        self.ListPlacements = channel.unary_unary(
+                '/clovelly.control.v1.Account/ListPlacements',
+                request_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.EnvRequest.SerializeToString,
+                response_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.ListPlacementsResponse.FromString,
+                _registered_method=True)
+        self.ListCells = channel.unary_unary(
+                '/clovelly.control.v1.Account/ListCells',
+                request_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.EnvRequest.SerializeToString,
+                response_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.ListCellsResponse.FromString,
+                _registered_method=True)
+        self.ListTemplates = channel.unary_unary(
+                '/clovelly.control.v1.Account/ListTemplates',
+                request_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.EnvRequest.SerializeToString,
+                response_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.ListTemplatesResponse.FromString,
+                _registered_method=True)
+        self.GetDailyUsage = channel.unary_unary(
+                '/clovelly.control.v1.Account/GetDailyUsage',
+                request_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.GetDailyUsageRequest.SerializeToString,
+                response_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.DailyUsage.FromString,
+                _registered_method=True)
+        self.ListKeys = channel.unary_unary(
+                '/clovelly.control.v1.Account/ListKeys',
+                request_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.EnvRequest.SerializeToString,
+                response_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.ListKeysResponse.FromString,
+                _registered_method=True)
+        self.CreateKey = channel.unary_unary(
+                '/clovelly.control.v1.Account/CreateKey',
+                request_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.CreateKeyRequest.SerializeToString,
+                response_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.CreateKeyResponse.FromString,
+                _registered_method=True)
+        self.RevokeKey = channel.unary_unary(
+                '/clovelly.control.v1.Account/RevokeKey',
+                request_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.RevokeKeyRequest.SerializeToString,
+                response_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.RevokeKeyResponse.FromString,
+                _registered_method=True)
+        self.ListMembers = channel.unary_unary(
+                '/clovelly.control.v1.Account/ListMembers',
+                request_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.ListMembersRequest.SerializeToString,
+                response_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.ListMembersResponse.FromString,
+                _registered_method=True)
+        self.InviteMember = channel.unary_unary(
+                '/clovelly.control.v1.Account/InviteMember',
+                request_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.InviteMemberRequest.SerializeToString,
+                response_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.Invitation.FromString,
+                _registered_method=True)
+        self.RevokeInvitation = channel.unary_unary(
+                '/clovelly.control.v1.Account/RevokeInvitation',
+                request_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.RevokeInvitationRequest.SerializeToString,
+                response_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.RevokeInvitationResponse.FromString,
+                _registered_method=True)
+        self.SetMember = channel.unary_unary(
+                '/clovelly.control.v1.Account/SetMember',
+                request_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.SetMemberRequest.SerializeToString,
+                response_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.Member.FromString,
+                _registered_method=True)
+        self.RemoveMember = channel.unary_unary(
+                '/clovelly.control.v1.Account/RemoveMember',
+                request_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.RemoveMemberRequest.SerializeToString,
+                response_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.RemoveMemberResponse.FromString,
+                _registered_method=True)
+        self.GetBilling = channel.unary_unary(
+                '/clovelly.control.v1.Account/GetBilling',
+                request_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.GetBillingRequest.SerializeToString,
+                response_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.Billing.FromString,
+                _registered_method=True)
+        self.CardSetup = channel.unary_unary(
+                '/clovelly.control.v1.Account/CardSetup',
+                request_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.CardSetupRequest.SerializeToString,
+                response_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.HostedPage.FromString,
+                _registered_method=True)
+        self.ConfirmCard = channel.unary_unary(
+                '/clovelly.control.v1.Account/ConfirmCard',
+                request_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.ConfirmCardRequest.SerializeToString,
+                response_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.Billing.FromString,
+                _registered_method=True)
+        self.BillingPortal = channel.unary_unary(
+                '/clovelly.control.v1.Account/BillingPortal',
+                request_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.CardSetupRequest.SerializeToString,
+                response_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.HostedPage.FromString,
+                _registered_method=True)
+        self.BuyCredit = channel.unary_unary(
+                '/clovelly.control.v1.Account/BuyCredit',
+                request_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.BuyCreditRequest.SerializeToString,
+                response_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.Billing.FromString,
+                _registered_method=True)
+        self.SetAutoRecharge = channel.unary_unary(
+                '/clovelly.control.v1.Account/SetAutoRecharge',
+                request_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.SetAutoRechargeRequest.SerializeToString,
+                response_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.Billing.FromString,
+                _registered_method=True)
+        self.StripeWebhook = channel.unary_unary(
+                '/clovelly.control.v1.Account/StripeWebhook',
+                request_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.StripeWebhookRequest.SerializeToString,
+                response_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.StripeWebhookResponse.FromString,
+                _registered_method=True)
+
+
+class AccountServicer(object):
+    """The customer's account: organizations, members, API keys, the usage and billing tables.
+    Every call carries "authorization: Bearer <token>", one of three. An API key
+    (clv_<env>_<random>), scoped to one environment, role read_write or read_only, does what a
+    member of that role may do in that environment, and never an organization-wide mutation
+    (members, billing, new environments). A console token, signed with a key the control plane
+    holds, is a session token (reads, 8 hours), an action token (one action in one environment,
+    5 minutes, single use) or an identity token (SignIn and SignUp only, 5 minutes). The operator
+    token does anything.
+
+    A member's role decides what a console token may do: owner everything; admin every mutation
+    but billing and members; developer keys and pools in the environments it is granted; read_only
+    nothing that changes anything.
+    """
+
+    def SignIn(self, request, context):
+        """Who the caller is: joins any invitation for its verified email and returns its
+        organization, if it has one. Identity token.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def SignUp(self, request, context):
+        """Creates an organization with the caller as its owner, or puts the caller on the
+        waitlist. Identity token.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetOrg(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def DeleteOrg(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListAudit(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def CheckVerifier(self, request, context):
+        """Whether a verifier URL answers and serves this environment's CA.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def CreateEnvironment(self, request, context):
+        """Creates an environment in the caller's organization and issues its first API key.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListSubenvironments(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListPlacements(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListCells(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListTemplates(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetDailyUsage(self, request, context):
+        """A month of cell-minutes per sub-environment and day, and the peak of concurrent
+        sandboxes per day.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListKeys(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def CreateKey(self, request, context):
+        """The plaintext appears in this response once; only its SHA-256 is stored.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def RevokeKey(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListMembers(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def InviteMember(self, request, context):
+        """Sends an invitation by email; inviting the same email again sends it again.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def RevokeInvitation(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def SetMember(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def RemoveMember(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetBilling(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def CardSetup(self, request, context):
+        """Stripe's hosted page that saves a card.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ConfirmCard(self, request, context):
+        """Asks Stripe whether a card is saved; the first one starts billing.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def BillingPortal(self, request, context):
+        """Stripe's portal: the card and each charge's receipt.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def BuyCredit(self, request, context):
+        """Charges the card for credit, at least $10, once per request id.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def SetAutoRecharge(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def StripeWebhook(self, request, context):
+        """Stripe's webhook, forwarded unread by the console. Authenticated by its signature.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+
+def add_AccountServicer_to_server(servicer, server):
+    rpc_method_handlers = {
+            'SignIn': grpc.unary_unary_rpc_method_handler(
+                    servicer.SignIn,
+                    request_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.SignInRequest.FromString,
+                    response_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.SignInResponse.SerializeToString,
+            ),
+            'SignUp': grpc.unary_unary_rpc_method_handler(
+                    servicer.SignUp,
+                    request_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.SignUpRequest.FromString,
+                    response_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.SignUpResponse.SerializeToString,
+            ),
+            'GetOrg': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetOrg,
+                    request_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.GetOrgRequest.FromString,
+                    response_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.Org.SerializeToString,
+            ),
+            'DeleteOrg': grpc.unary_unary_rpc_method_handler(
+                    servicer.DeleteOrg,
+                    request_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.DeleteOrgRequest.FromString,
+                    response_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.DeleteOrgResponse.SerializeToString,
+            ),
+            'ListAudit': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListAudit,
+                    request_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.ListAuditRequest.FromString,
+                    response_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.ListAuditResponse.SerializeToString,
+            ),
+            'CheckVerifier': grpc.unary_unary_rpc_method_handler(
+                    servicer.CheckVerifier,
+                    request_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.CheckVerifierRequest.FromString,
+                    response_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.CheckVerifierResponse.SerializeToString,
+            ),
+            'CreateEnvironment': grpc.unary_unary_rpc_method_handler(
+                    servicer.CreateEnvironment,
+                    request_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.CreateEnvironmentRequest.FromString,
+                    response_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.CreateEnvironmentResponse.SerializeToString,
+            ),
+            'ListSubenvironments': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListSubenvironments,
+                    request_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.EnvRequest.FromString,
+                    response_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.ListSubenvironmentsResponse.SerializeToString,
+            ),
+            'ListPlacements': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListPlacements,
+                    request_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.EnvRequest.FromString,
+                    response_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.ListPlacementsResponse.SerializeToString,
+            ),
+            'ListCells': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListCells,
+                    request_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.EnvRequest.FromString,
+                    response_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.ListCellsResponse.SerializeToString,
+            ),
+            'ListTemplates': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListTemplates,
+                    request_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.EnvRequest.FromString,
+                    response_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.ListTemplatesResponse.SerializeToString,
+            ),
+            'GetDailyUsage': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetDailyUsage,
+                    request_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.GetDailyUsageRequest.FromString,
+                    response_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.DailyUsage.SerializeToString,
+            ),
+            'ListKeys': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListKeys,
+                    request_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.EnvRequest.FromString,
+                    response_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.ListKeysResponse.SerializeToString,
+            ),
+            'CreateKey': grpc.unary_unary_rpc_method_handler(
+                    servicer.CreateKey,
+                    request_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.CreateKeyRequest.FromString,
+                    response_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.CreateKeyResponse.SerializeToString,
+            ),
+            'RevokeKey': grpc.unary_unary_rpc_method_handler(
+                    servicer.RevokeKey,
+                    request_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.RevokeKeyRequest.FromString,
+                    response_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.RevokeKeyResponse.SerializeToString,
+            ),
+            'ListMembers': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListMembers,
+                    request_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.ListMembersRequest.FromString,
+                    response_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.ListMembersResponse.SerializeToString,
+            ),
+            'InviteMember': grpc.unary_unary_rpc_method_handler(
+                    servicer.InviteMember,
+                    request_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.InviteMemberRequest.FromString,
+                    response_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.Invitation.SerializeToString,
+            ),
+            'RevokeInvitation': grpc.unary_unary_rpc_method_handler(
+                    servicer.RevokeInvitation,
+                    request_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.RevokeInvitationRequest.FromString,
+                    response_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.RevokeInvitationResponse.SerializeToString,
+            ),
+            'SetMember': grpc.unary_unary_rpc_method_handler(
+                    servicer.SetMember,
+                    request_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.SetMemberRequest.FromString,
+                    response_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.Member.SerializeToString,
+            ),
+            'RemoveMember': grpc.unary_unary_rpc_method_handler(
+                    servicer.RemoveMember,
+                    request_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.RemoveMemberRequest.FromString,
+                    response_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.RemoveMemberResponse.SerializeToString,
+            ),
+            'GetBilling': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetBilling,
+                    request_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.GetBillingRequest.FromString,
+                    response_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.Billing.SerializeToString,
+            ),
+            'CardSetup': grpc.unary_unary_rpc_method_handler(
+                    servicer.CardSetup,
+                    request_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.CardSetupRequest.FromString,
+                    response_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.HostedPage.SerializeToString,
+            ),
+            'ConfirmCard': grpc.unary_unary_rpc_method_handler(
+                    servicer.ConfirmCard,
+                    request_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.ConfirmCardRequest.FromString,
+                    response_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.Billing.SerializeToString,
+            ),
+            'BillingPortal': grpc.unary_unary_rpc_method_handler(
+                    servicer.BillingPortal,
+                    request_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.CardSetupRequest.FromString,
+                    response_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.HostedPage.SerializeToString,
+            ),
+            'BuyCredit': grpc.unary_unary_rpc_method_handler(
+                    servicer.BuyCredit,
+                    request_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.BuyCreditRequest.FromString,
+                    response_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.Billing.SerializeToString,
+            ),
+            'SetAutoRecharge': grpc.unary_unary_rpc_method_handler(
+                    servicer.SetAutoRecharge,
+                    request_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.SetAutoRechargeRequest.FromString,
+                    response_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.Billing.SerializeToString,
+            ),
+            'StripeWebhook': grpc.unary_unary_rpc_method_handler(
+                    servicer.StripeWebhook,
+                    request_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.StripeWebhookRequest.FromString,
+                    response_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.StripeWebhookResponse.SerializeToString,
+            ),
+    }
+    generic_handler = grpc.method_handlers_generic_handler(
+            'clovelly.control.v1.Account', rpc_method_handlers)
+    server.add_generic_rpc_handlers((generic_handler,))
+    server.add_registered_method_handlers('clovelly.control.v1.Account', rpc_method_handlers)
+
+
+ # This class is part of an EXPERIMENTAL API.
+class Account(object):
+    """The customer's account: organizations, members, API keys, the usage and billing tables.
+    Every call carries "authorization: Bearer <token>", one of three. An API key
+    (clv_<env>_<random>), scoped to one environment, role read_write or read_only, does what a
+    member of that role may do in that environment, and never an organization-wide mutation
+    (members, billing, new environments). A console token, signed with a key the control plane
+    holds, is a session token (reads, 8 hours), an action token (one action in one environment,
+    5 minutes, single use) or an identity token (SignIn and SignUp only, 5 minutes). The operator
+    token does anything.
+
+    A member's role decides what a console token may do: owner everything; admin every mutation
+    but billing and members; developer keys and pools in the environments it is granted; read_only
+    nothing that changes anything.
+    """
+
+    @staticmethod
+    def SignIn(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/clovelly.control.v1.Account/SignIn',
+            clovelly_dot_control_dot_v1_dot_control__pb2.SignInRequest.SerializeToString,
+            clovelly_dot_control_dot_v1_dot_control__pb2.SignInResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def SignUp(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/clovelly.control.v1.Account/SignUp',
+            clovelly_dot_control_dot_v1_dot_control__pb2.SignUpRequest.SerializeToString,
+            clovelly_dot_control_dot_v1_dot_control__pb2.SignUpResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetOrg(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/clovelly.control.v1.Account/GetOrg',
+            clovelly_dot_control_dot_v1_dot_control__pb2.GetOrgRequest.SerializeToString,
+            clovelly_dot_control_dot_v1_dot_control__pb2.Org.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def DeleteOrg(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/clovelly.control.v1.Account/DeleteOrg',
+            clovelly_dot_control_dot_v1_dot_control__pb2.DeleteOrgRequest.SerializeToString,
+            clovelly_dot_control_dot_v1_dot_control__pb2.DeleteOrgResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListAudit(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/clovelly.control.v1.Account/ListAudit',
+            clovelly_dot_control_dot_v1_dot_control__pb2.ListAuditRequest.SerializeToString,
+            clovelly_dot_control_dot_v1_dot_control__pb2.ListAuditResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CheckVerifier(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/clovelly.control.v1.Account/CheckVerifier',
+            clovelly_dot_control_dot_v1_dot_control__pb2.CheckVerifierRequest.SerializeToString,
+            clovelly_dot_control_dot_v1_dot_control__pb2.CheckVerifierResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CreateEnvironment(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/clovelly.control.v1.Account/CreateEnvironment',
+            clovelly_dot_control_dot_v1_dot_control__pb2.CreateEnvironmentRequest.SerializeToString,
+            clovelly_dot_control_dot_v1_dot_control__pb2.CreateEnvironmentResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListSubenvironments(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/clovelly.control.v1.Account/ListSubenvironments',
+            clovelly_dot_control_dot_v1_dot_control__pb2.EnvRequest.SerializeToString,
+            clovelly_dot_control_dot_v1_dot_control__pb2.ListSubenvironmentsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListPlacements(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/clovelly.control.v1.Account/ListPlacements',
+            clovelly_dot_control_dot_v1_dot_control__pb2.EnvRequest.SerializeToString,
+            clovelly_dot_control_dot_v1_dot_control__pb2.ListPlacementsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListCells(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/clovelly.control.v1.Account/ListCells',
+            clovelly_dot_control_dot_v1_dot_control__pb2.EnvRequest.SerializeToString,
+            clovelly_dot_control_dot_v1_dot_control__pb2.ListCellsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListTemplates(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/clovelly.control.v1.Account/ListTemplates',
+            clovelly_dot_control_dot_v1_dot_control__pb2.EnvRequest.SerializeToString,
+            clovelly_dot_control_dot_v1_dot_control__pb2.ListTemplatesResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetDailyUsage(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/clovelly.control.v1.Account/GetDailyUsage',
+            clovelly_dot_control_dot_v1_dot_control__pb2.GetDailyUsageRequest.SerializeToString,
+            clovelly_dot_control_dot_v1_dot_control__pb2.DailyUsage.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListKeys(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/clovelly.control.v1.Account/ListKeys',
+            clovelly_dot_control_dot_v1_dot_control__pb2.EnvRequest.SerializeToString,
+            clovelly_dot_control_dot_v1_dot_control__pb2.ListKeysResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CreateKey(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/clovelly.control.v1.Account/CreateKey',
+            clovelly_dot_control_dot_v1_dot_control__pb2.CreateKeyRequest.SerializeToString,
+            clovelly_dot_control_dot_v1_dot_control__pb2.CreateKeyResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def RevokeKey(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/clovelly.control.v1.Account/RevokeKey',
+            clovelly_dot_control_dot_v1_dot_control__pb2.RevokeKeyRequest.SerializeToString,
+            clovelly_dot_control_dot_v1_dot_control__pb2.RevokeKeyResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListMembers(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/clovelly.control.v1.Account/ListMembers',
+            clovelly_dot_control_dot_v1_dot_control__pb2.ListMembersRequest.SerializeToString,
+            clovelly_dot_control_dot_v1_dot_control__pb2.ListMembersResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def InviteMember(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/clovelly.control.v1.Account/InviteMember',
+            clovelly_dot_control_dot_v1_dot_control__pb2.InviteMemberRequest.SerializeToString,
+            clovelly_dot_control_dot_v1_dot_control__pb2.Invitation.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def RevokeInvitation(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/clovelly.control.v1.Account/RevokeInvitation',
+            clovelly_dot_control_dot_v1_dot_control__pb2.RevokeInvitationRequest.SerializeToString,
+            clovelly_dot_control_dot_v1_dot_control__pb2.RevokeInvitationResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def SetMember(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/clovelly.control.v1.Account/SetMember',
+            clovelly_dot_control_dot_v1_dot_control__pb2.SetMemberRequest.SerializeToString,
+            clovelly_dot_control_dot_v1_dot_control__pb2.Member.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def RemoveMember(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/clovelly.control.v1.Account/RemoveMember',
+            clovelly_dot_control_dot_v1_dot_control__pb2.RemoveMemberRequest.SerializeToString,
+            clovelly_dot_control_dot_v1_dot_control__pb2.RemoveMemberResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetBilling(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/clovelly.control.v1.Account/GetBilling',
+            clovelly_dot_control_dot_v1_dot_control__pb2.GetBillingRequest.SerializeToString,
+            clovelly_dot_control_dot_v1_dot_control__pb2.Billing.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CardSetup(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/clovelly.control.v1.Account/CardSetup',
+            clovelly_dot_control_dot_v1_dot_control__pb2.CardSetupRequest.SerializeToString,
+            clovelly_dot_control_dot_v1_dot_control__pb2.HostedPage.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ConfirmCard(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/clovelly.control.v1.Account/ConfirmCard',
+            clovelly_dot_control_dot_v1_dot_control__pb2.ConfirmCardRequest.SerializeToString,
+            clovelly_dot_control_dot_v1_dot_control__pb2.Billing.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def BillingPortal(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/clovelly.control.v1.Account/BillingPortal',
+            clovelly_dot_control_dot_v1_dot_control__pb2.CardSetupRequest.SerializeToString,
+            clovelly_dot_control_dot_v1_dot_control__pb2.HostedPage.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def BuyCredit(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/clovelly.control.v1.Account/BuyCredit',
+            clovelly_dot_control_dot_v1_dot_control__pb2.BuyCreditRequest.SerializeToString,
+            clovelly_dot_control_dot_v1_dot_control__pb2.Billing.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def SetAutoRecharge(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/clovelly.control.v1.Account/SetAutoRecharge',
+            clovelly_dot_control_dot_v1_dot_control__pb2.SetAutoRechargeRequest.SerializeToString,
+            clovelly_dot_control_dot_v1_dot_control__pb2.Billing.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def StripeWebhook(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/clovelly.control.v1.Account/StripeWebhook',
+            clovelly_dot_control_dot_v1_dot_control__pb2.StripeWebhookRequest.SerializeToString,
+            clovelly_dot_control_dot_v1_dot_control__pb2.StripeWebhookResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)

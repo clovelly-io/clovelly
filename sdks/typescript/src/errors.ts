@@ -94,6 +94,12 @@ export class NoCellCanHold extends ClovellyError {}
 export class NoCellReady extends ClovellyError {}
 /** The environment is at a quota (cells, sandboxes or volume bytes); never queued. */
 export class QuotaExceeded extends ClovellyError {}
+/**
+ * CREDIT_EXHAUSTED: the organization has no credit, no card on file, or a failed charge past its
+ * grace, so nothing new is placed. Running sandboxes finish to their timeout; credit added resumes
+ * placements within a minute. The message says which, and what to do (docs/billing.md).
+ */
+export class CreditExhausted extends ClovellyError {}
 /** CELL_CREATE_FAILED: the Compute API refused to create a cell. */
 export class CellCreateFailed extends ClovellyError {}
 
@@ -191,6 +197,9 @@ const BY_REASON = {
   NO_CELL_CAN_HOLD: NoCellCanHold,
   NO_CELL_READY: NoCellReady,
   QUOTA_EXCEEDED: QuotaExceeded,
+  CREDIT_EXHAUSTED: CreditExhausted,
+  NOT_READY: ControlPlaneUnavailable,
+  SIGN_UP_CLOSED: PermissionDenied,
   CELL_CREATE_FAILED: CellCreateFailed,
   STORAGE: StorageUnavailable,
   NO_SUCH_TEMPLATE: NoSuchTemplate,
