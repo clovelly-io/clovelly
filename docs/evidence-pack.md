@@ -7,7 +7,8 @@ is reachable from this repository; `clovelly.io` serves the same pages.
 |---|---|---|
 | Measurement set | [Releases](https://github.com/clovelly-io/clovelly/releases): each release's `fragment.json` and `entry.json` | What a genuine cell of that release measures, logged in Sigstore's Rekor |
 | Rebuilding a release | [REPRODUCE.md](../REPRODUCE.md) | How to get the same measurements from this source, alone |
-| Verifier deployment guide | [verifier-deploy.md](verifier-deploy.md) | Running your own verifier, in your project, with your keys |
+| The key helper | [key-helper.md](key-helper.md) | The one interface between your verifier and your keys, and its conformance suite |
+| Verifier deployment guide | [verifier-deploy.md](verifier-deploy.md) | Running your own verifier, on your platform, with your keys in your key manager |
 | Threat model | [threat-model.md](threat-model.md) | What this defends against, and what it does not |
 | Receipt tool | [`crates/receipt-tool`](../crates/receipt-tool) | Checks a receipt offline: signature, chain to your CA, measurements |
 | Static egress addresses | [static-egress-ips.md](static-egress-ips.md) | The addresses your sandboxes' traffic comes from |

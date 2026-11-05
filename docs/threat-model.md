@@ -9,7 +9,7 @@ Deployment is in [verifier-deploy.md](verifier-deploy.md); the design is in
 
 | Party | Role | Trusted for |
 |---|---|---|
-| Customer | Runs the verifier and KMS; owns DEKs and the environment CA. | Everything they run. |
+| Customer | Runs the verifier, the key helper and the key manager; owns DEKs and the environment CA. | Everything they run. |
 | Us (the provider) | Build the cell images, run the hosts' control plane, GCS, the network and instance metadata. | Nothing at unlock time. Our release key signs which images exist; anyone can rebuild them and compare measurements (phase 5 adds the public log). |
 | Intel | TDX module, quoting enclave, PCK certificates, collateral (PCS). | That a quote comes from a genuine, patched TDX platform. |
 | Google | Firmware (TDVF), MR_OWNER binding, host registry, firmware endorsements. | The firmware it endorses and the project, zone and instance it writes into MR_OWNER. |
@@ -21,10 +21,10 @@ verifier. Physical attacks on the CPU (TEE.fail, DDRop) are out of scope.
 
 ## Assets
 
-- **Sub-environment DEKs.** Decrypted from KMS for each unlock, HPKE-sealed to one
-  cell's key, never stored by the verifier.
-- **The environment CA key.** In KMS; signs one certificate per unlocked cell.
-- **The policy key.** In KMS; signs each sub-environment's policy bundle. Its public key
+- **Sub-environment DEKs.** Decrypted by the customer's key manager for each unlock, through
+  the key helper, HPKE-sealed to one cell's key, never stored by the verifier.
+- **The environment CA key.** In the key manager; signs one certificate per unlocked cell.
+- **The policy key.** In the key manager; signs each sub-environment's policy bundle. Its public key
   goes to each cell at every unlock and renewal, and the cell verifies every bundle against
   the keys its latest lease named, one normally and two while the key rotates
   ([key-rotation.md](key-rotation.md)). The same verifier names them that issued the cell's
@@ -54,7 +54,7 @@ first check that failed.
 | Replay an old unlock, or use one cell's quote for another key or environment | Check 8: REPORTDATA = SHA-512("clovelly-v1" ‖ env ‖ SHA-256(SPKI) ‖ nonce); the nonce was issued by this verifier for this environment, is under 5 minutes old and is used once. |
 | Push an untested release, or an old release after a CVE | Check 9: the release is in the signed policy and past its notice window, or pinned by the customer. Check 10: before `valid_until`, pinned or not. |
 | Intercept the DEK | HPKE to the key bound by check 8; the `info` names the environment and sub-environment. Only that cell's private key opens it (criterion 5's test). |
-| Spoof or hide a cell's network address | Nothing relies on it. Cells reach Cloud Run over Google's private path, so the verifier sees no source IP of theirs (Cloud Run logs `0.0.0.0`); a cell's identity is its quote (check 7), never where its packets came from. |
+| Spoof or hide a cell's network address | Nothing relies on it. A cell's identity is its quote (check 7), never where its packets came from. Cells reach a verifier on Google Cloud over Google's private path, so it sees no source IP of theirs, and a verifier anywhere else from the addresses in [static-egress-ips.md](static-egress-ips.md), which a customer may allowlist as one more filter and no more. |
 | Point a cell at a fake verifier | The cell talks TLS to the URL it was given. A fake verifier has no DEK to give, and its certificate does not chain to the customer's CA, so SDKs refuse the cell (phase 2). A wrong URL means no unlock; the agent gives up after 5 minutes and the cell is recycled. |
 | Serve a cell a different policy bundle | Bundles are signed by the customer's policy key and name their environment and sub-environment; the cell refuses a bundle that does not verify, is for another scope, has expired or is older than the one in force, and then creates no sandbox until it gets one it accepts. `GetPolicy` is open: a bundle is not secret. |
 | Plant or swap a credential | `SealCredential` needs the SDK token. The ciphertext's associated data names the environment, sub-environment, credential, adapter type and destination, so whoever stores it (the control plane) cannot move it to another name or host, and a cell releases it only for the destination and adapter its policy uses there. |
@@ -89,9 +89,42 @@ agent; the verifier's check 6 is the control that matters.
 - **Our release policy.** The verifier accepts what our release key signs. Phase 5 adds
   public logging (Rekor) and the notice window, so a customer can see a release before
   their verifier accepts it and rebuild it to check its measurements.
-- **Cloud Run and KMS.** The verifier runs on Google's infrastructure in the customer's
-  project. Google, or anyone with the customer's project IAM, can read its memory or
-  call KMS directly. The verifier is the customer's component, not ours.
+- **The customer's platform and key manager.** The verifier runs on infrastructure the customer
+  chose. That platform's operator, or anyone with the customer's rights on it, can read its
+  memory or call the key manager directly. The verifier is the customer's component, not ours.
+
+## The key helper
+
+The verifier holds no key-manager code. It reaches the customer's keys through one small HTTP
+interface on its own loopback ([key-helper.md](key-helper.md)), served by a second container: ours for
+Cloud KMS and AWS KMS, or one the customer wrote. What that means:
+
+- **The helper is inside the customer's trust.** It can sign as the environment CA and see every
+  DEK. Whoever can reach it can too, so the interface has no authentication and must not be on a
+  network: the verifier refuses to start on an address that is not loopback, written as a number, and the
+  reference helpers refuse to bind one. On a platform where something else shares that loopback (another
+  container in the same pod or task, a debugging sidecar), that thing can use the keys: **it is the customer's
+  to keep the verifier's neighbours out.** A key manager's audit log shows the helper's identity on every use.
+- **A helper is not trusted about signatures.** The verifier checks each one under the key it should be
+  from before it uses it, and for a cell certificate that key is the one in the customer's own CA certificate,
+  whatever the helper says its key is. A helper that answers in the wrong format or with another key is refused,
+  and nothing is issued.
+- **A helper can return a wrong DEK.** Nothing can catch that at unlock: the configuration holds only
+  ciphertext. A wrong DEK fails where it is used, on a credential or volume that does not open, and
+  `verifier check-keys` is the test of a helper's decrypt. It is the customer's own helper giving the customer's
+  own cell a key, so this is a fault to find and not a boundary to defend.
+- **A helper that is down, slow or refusing fails closed.** Every request has 10 seconds. A failure gives the cell
+  `UNAVAILABLE`, no certificate and no key, and is logged. Running cells keep their lease until it ends, at most 60
+  minutes, then end their sandboxes.
+- **The reference helpers' identity is least privilege.** `clovelly-keys init` grants the role it will run as what
+  it needs on each of the three keys and nothing else: sign and read public keys on two, decrypt on the third. It
+  cannot create, delete, disable or re-key, and `clovelly-keys check-role` proves that against the real key manager.
+- **We ship no helper that holds a private key itself,** in a file, an environment variable or memory. A customer who
+  writes one has chosen a weaker verifier than ours: nothing then stops the key being copied, there is no key
+  manager's audit log, and revoking it means trusting whoever holds the copy.
+- **The images are the same for everyone.** The verifier's image is byte-identical for every customer, so a customer
+  can compare its digest with the one in the signed release, or rebuild it (`REPRODUCE.md`). The helper is a separate
+  container for that reason.
 
 ## Known limits in phase 1
 
@@ -107,7 +140,7 @@ agent; the verifier's check 6 is the control that matters.
   their TTL, but a flood can exhaust the one instance. Cloud Armor or quotas belong in
   front of it in production.
 - **Plaintext DEKs in verifier memory.** Our own copies are wiped; the HTTP and JSON
-  buffers that carry KMS's response are freed without wiping.
+  buffers that carry the key helper's response are freed without wiping.
 - **The cell's TLS key.** The cell agent wipes its own copies of the private key; tonic,
   which serves TLS, keeps one in its configuration for the cell's lifetime. The cell
   key also serves as the HPKE recipient and receipt key, as the spec requires.

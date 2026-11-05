@@ -6,8 +6,9 @@
 //! A bundle holds the evidence, the collateral Intel served (or a crafted copy under a
 //! test root), Google's endorsements and host-registry entries, the release policy,
 //! the customer's pins, when the nonce was issued and the clock to evaluate at.
-//! [`Bundle::verifier`] builds a [`Verifier`] over it with [`FileSources`] and
-//! [`LocalKms`].
+//! [`Bundle::verifier`] builds a [`Verifier`] over it with [`FileSources`] and the keys it
+//! is given: the corpus runs through a key helper (phase 8). Test code: built only under the
+//! `test-keys` feature, never into a released binary.
 
 use std::collections::BTreeMap;
 
@@ -18,7 +19,7 @@ use common::tdx::Measurement;
 use serde::{Deserialize, Serialize};
 
 use crate::config::{Ca, Config, Subenv};
-use crate::kms::LocalKms;
+use crate::keys::{KeyError, Keys};
 use crate::policy::ReleasePolicy;
 use crate::sources::{Collateral, SourceError, Sources};
 use crate::verifier::Verifier;
@@ -158,8 +159,8 @@ pub enum BundleError {
     Ca(#[from] crate::x509::X509Error),
     #[error("verifier: {0}")]
     Setup(#[from] crate::verifier::SetupError),
-    #[error("KMS: {0}")]
-    Kms(#[from] crate::kms::KmsError),
+    #[error("keys: {0}")]
+    Keys(#[from] KeyError),
 }
 
 /// Serves a bundle's collateral, registry and endorsements.
@@ -209,12 +210,12 @@ impl Bundle {
         })
     }
 
-    /// A verifier for this bundle's environment, with a fresh local CA, a local DEK
-    /// and the bundle's nonce recorded as issued.
-    pub async fn verifier(&self) -> Result<Verifier<FileSources, LocalKms>, BundleError> {
+    /// A verifier for this bundle's environment, with a CA made under `keys`' key `ca`, a DEK
+    /// wrapped under its key `dek`, and the bundle's nonce recorded as issued.
+    pub async fn verifier<K: Keys>(&self, keys: K) -> Result<Verifier<FileSources, K>, BundleError> {
         let ev = self.evidence()?;
-        let kms = LocalKms::generate(&["ca"]);
-        let ca_der = crate::x509::make_ca(&kms, "ca", ev.env.as_str(), self.now - 86_400).await?;
+        let ca_der = crate::x509::make_ca(&keys, "ca", ev.env.as_str(), None, self.now - 86_400).await?;
+        let wrapped_dek = b64::encode(&keys.encrypt("dek", &[0x5a; 32]).await?);
         let policy: ReleasePolicy = serde_json::from_value(self.policy.clone())?;
         let endorsements = self
             .endorsements
@@ -230,18 +231,18 @@ impl Bundle {
             subenvs: [(
                 ev.subenv.clone(),
                 Subenv {
-                    wrapped_dek: b64::encode(&[0x5a; 32]),
+                    wrapped_dek,
                     policy_bundle: r#"{"v":1,"destinations":[]}"#.into(),
                     policy_sig: String::new(),
                 },
             )]
             .into(),
             ca: Ca {
-                kms_key: "ca".into(),
+                key: "ca".into(),
                 cert_pem: b64::pem("CERTIFICATE", &ca_der),
                 previous_cert_pem: vec![],
             },
-            dek_kms_key: "dek".into(),
+            dek_key: "dek".into(),
             release_keys: vec![],
             policy_key_pem: String::new(),
             sdk_token_sha256: None,
@@ -265,7 +266,7 @@ impl Bundle {
             self.trust_root.clone(),
             crate::GOOGLE_ROOT.to_vec(),
             sources,
-            kms,
+            keys,
         )?;
         if let Some(at) = self.nonce_issued_at {
             v.nonces().record(ev.nonce, &ev.env, at);

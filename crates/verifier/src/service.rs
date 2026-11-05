@@ -31,7 +31,7 @@ use serde_json::json;
 use tonic::{Request, Response, Status};
 
 use crate::checks::{Check, Outcome, Report};
-use crate::kms::Kms;
+use crate::keys::Keys;
 use crate::receipts::{self, ReceiptLog};
 use crate::sources::Sources;
 use crate::verifier::{SealError, UnlockError, Verifier};
@@ -94,7 +94,7 @@ pub struct Service<S, K> {
     clock: Clock,
 }
 
-impl<S: Sources, K: Kms> Service<S, K> {
+impl<S: Sources, K: Keys> Service<S, K> {
     pub fn new(verifier: Arc<Verifier<S, K>>, clock: Clock) -> Self {
         Self {
             verifier,
@@ -123,7 +123,7 @@ impl<S: Sources, K: Kms> Service<S, K> {
 }
 
 #[tonic::async_trait]
-impl<S: Sources + 'static, K: Kms + 'static> Api for Service<S, K> {
+impl<S: Sources + 'static, K: Keys + 'static> Api for Service<S, K> {
     async fn get_nonce(
         &self,
         req: Request<GetNonceRequest>,
@@ -329,7 +329,7 @@ fn sdk_token_ok(md: &tonic::metadata::MetadataMap, want_hex: Option<&str>) -> bo
     constant_time::verify_slices_are_equal(hash.as_ref(), &want).is_ok()
 }
 
-async fn seal<S: Sources + 'static, K: Kms + 'static>(
+async fn seal<S: Sources + 'static, K: Keys + 'static>(
     v: &Verifier<S, K>,
     r: &SealCredentialRequest,
 ) -> Result<common::cred::Sealed, Status> {
@@ -443,7 +443,7 @@ mod tests {
         use tonic::metadata::MetadataValue;
 
         use crate::config::{Ca, Config, Subenv};
-        use crate::kms::LocalKms;
+        use crate::keys::LocalKms;
         use crate::policy::ReleasePolicy;
         use crate::service::Service;
         use crate::sources::{Collateral, SourceError, Sources};
@@ -530,11 +530,11 @@ mod tests {
                 env: "staging".parse().unwrap(),
                 subenvs: BTreeMap::from([("a".parse().unwrap(), subenv(DEK_A)), ("b".parse().unwrap(), subenv([8; 32]))]),
                 ca: Ca {
-                    kms_key: "ca".into(),
+                    key: "ca".into(),
                     cert_pem: ca.pem.clone(),
                     previous_cert_pem: previous.iter().map(|c| c.pem.clone()).collect(),
                 },
-                dek_kms_key: "dek".into(),
+                dek_key: "dek".into(),
                 release_keys: vec![],
                 policy_key_pem: String::new(),
                 sdk_token_sha256: Some(common::hex(aws_lc_rs::digest::digest(&aws_lc_rs::digest::SHA256, TOKEN.as_bytes()).as_ref())),
@@ -591,7 +591,7 @@ mod tests {
         }
     }
 
-    async fn listed(svc: &Service<NoSources, crate::kms::LocalKms>) -> Vec<common::proto::verifier::LoggedReceipt> {
+    async fn listed(svc: &Service<NoSources, crate::keys::LocalKms>) -> Vec<common::proto::verifier::LoggedReceipt> {
         let req = ListReceiptsRequest { env_id: "staging".into(), ..Default::default() };
         svc.list_receipts(authed(req, TOKEN)).await.unwrap().into_inner().receipts
     }

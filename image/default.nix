@@ -112,18 +112,37 @@ let
     buildFeatures = [ "test-clock" ];
   };
 
-  # The verifier as an OCI image for Cloud Run. Fixed creation time, so the image
+  # The reference key helpers (docs/key-helper.md), which the verifier reaches on its loopback.
+  key-helper = rust "key-helper" { };
+
+  # One published image: a single binary and the CA bundle. Fixed creation time, so the
   # digest depends only on its contents.
-  verifier-image = pkgs.dockerTools.buildLayeredImage {
-    name = "verifier";
-    tag = version;
-    created = "1970-01-01T00:00:01Z";
-    contents = [ pkgs.cacert ];
-    config = {
-      Entrypoint = [ "${verifier}/bin/verifier" ];
-      Env = [ "SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt" ];
+  publishedImage =
+    name: entrypoint:
+    pkgs.dockerTools.buildLayeredImage {
+      inherit name;
+      tag = version;
+      created = "1970-01-01T00:00:01Z";
+      contents = [ pkgs.cacert ];
+      config = {
+        Entrypoint = [ entrypoint ];
+        Env = [ "SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt" ];
+        Labels."org.opencontainers.image.source" = "https://github.com/clovelly-io/clovelly";
+      };
     };
-  };
+
+  # An image as the release publishes it: its layers compressed once, here, so the digest in
+  # the signed payload is the digest in the registry (oci-layout.py).
+  ociLayout =
+    name: image:
+    pkgs.runCommand "${name}-oci" { nativeBuildInputs = [ pkgs.python3 ]; } ''
+      python3 ${./oci-layout.py} ${image} $out
+    '';
+
+  verifier-image = publishedImage "verifier" "${verifier}/bin/verifier";
+  clovelly-keys-image = publishedImage "clovelly-keys" "${key-helper}/bin/clovelly-keys";
+  verifier-image-oci = ociLayout "verifier" verifier-image;
+  clovelly-keys-image-oci = ociLayout "clovelly-keys" clovelly-keys-image;
 
   # The test-clock verifier for the staging job, built the same way.
   verifier-image-test-clock = pkgs.dockerTools.buildLayeredImage {
@@ -606,7 +625,11 @@ in
     egress-proxy
     measure
     verifier
+    key-helper
     verifier-image
+    clovelly-keys-image
+    verifier-image-oci
+    clovelly-keys-image-oci
     verifier-image-test-clock
     runsc
     attest-tools

@@ -1,13 +1,16 @@
-//! Certificates the verifier signs with a KMS key: the environment CA (once, by
-//! `verifier make-ca`) and a certificate for every unlocked cell.
+//! Certificates the verifier signs through the key helper: the environment CA (once, by
+//! `verifier init` or `verifier make-ca`) and a certificate for every unlocked cell.
 //!
-//! KMS signs asynchronously, so the TBSCertificate is encoded here from x509-cert's
-//! public types, signed, and wrapped as a Certificate.
+//! The helper signs asynchronously, so the TBSCertificate is encoded here from x509-cert's
+//! public types, signed, checked under the key it should be from, and wrapped as a
+//! Certificate.
 
 use std::str::FromStr;
 use std::time::Duration;
 
 use common::cellcert::{self, CellCertInfo};
+use common::evidence::{EvidenceError, Spki};
+use common::jws::TrustedKey;
 use der::asn1::{AnyRef, BitString, Ia5String, ObjectIdentifier, OctetString, UtcTime};
 use der::oid::AssociatedOid;
 use der::{Decode, Encode, Sequence};
@@ -24,7 +27,7 @@ use x509_cert::serial_number::SerialNumber;
 use x509_cert::spki::{AlgorithmIdentifierOwned, SubjectPublicKeyInfoOwned};
 use x509_cert::time::{Time, Validity};
 
-use crate::kms::{Kms, KmsError};
+use crate::keys::{self, KeyError, Keys};
 
 const ECDSA_WITH_SHA256: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.2.840.10045.4.3.2");
 const KP_SERVER_AUTH: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.3.6.1.5.5.7.3.1");
@@ -38,7 +41,9 @@ pub enum X509Error {
     #[error("DER: {0}")]
     Der(#[from] der::Error),
     #[error(transparent)]
-    Kms(#[from] KmsError),
+    Keys(#[from] KeyError),
+    #[error("the CA certificate's key: {0}")]
+    CaKey(#[from] EvidenceError),
     #[error("CA certificate PEM holds no CERTIFICATE")]
     NoCaCert,
     #[error("CA certificate has no subject key identifier")]
@@ -72,6 +77,9 @@ pub struct CaCert {
     pub der: Vec<u8>,
     subject: Name,
     ski: OctetString,
+    /// The certificate's own public key: what a cell certificate's signature must verify
+    /// under, whatever the key helper says its key is.
+    key: TrustedKey,
 }
 
 impl CaCert {
@@ -85,19 +93,28 @@ impl CaCert {
             .tbs_certificate()
             .get_extension::<SubjectKeyIdentifier>()?
             .ok_or(X509Error::NoSki)?;
+        let key = TrustedKey::from_spki(Spki::from_der(&cert.tbs_certificate().subject_public_key_info().to_der()?)?);
         Ok(Self {
             subject: cert.tbs_certificate().subject().clone(),
             ski: ski.0,
             der,
+            key,
         })
     }
 }
 
 /// Creates the self-signed environment CA for `key`, valid from `now` for ten years.
-pub async fn make_ca(kms: &impl Kms, key: &str, env: &str, now: u64) -> Result<Vec<u8>, X509Error> {
-    let spki = SubjectPublicKeyInfoOwned::from_der(&kms.public_key(key).await?)?;
+///
+/// `generation` is what sets a rotated CA's subject apart from its predecessor's: an SDK's
+/// bundle holds both during a rotation, and TLS stacks that pick an issuer by subject alone
+/// (OpenSSL, BoringSSL) would try only one of two CAs with the same subject. `None`, for a
+/// first CA, adds nothing. The key's name says nothing: nothing here parses it.
+pub async fn make_ca(keys: &impl Keys, key: &str, env: &str, generation: Option<u32>, now: u64) -> Result<Vec<u8>, X509Error> {
+    let expected = keys::trusted(keys, key).await?;
+    let spki = SubjectPublicKeyInfoOwned::from_der(expected.spki_der())?;
     let ski = key_id(&spki);
-    let name = Name::from_str(&format!("CN=clovelly {env} environment CA{},O=clovelly", generation(key)))?;
+    let generation = generation.map_or(String::new(), |g| format!(" v{g}"));
+    let name = Name::from_str(&format!("CN=clovelly {env} environment CA{generation},O=clovelly"))?;
     let extensions = vec![
         extension(
             &BasicConstraints {
@@ -119,18 +136,7 @@ pub async fn make_ca(kms: &impl Kms, key: &str, env: &str, now: u64) -> Result<V
         subject_public_key_info: spki,
         extensions: Some(extensions),
     };
-    sign(tbs, kms, key).await
-}
-
-/// What sets a rotated CA's subject apart from its predecessor's, from its KMS key
-/// version: an SDK's bundle holds both during a rotation, and TLS stacks that pick an
-/// issuer by subject alone (OpenSSL, BoringSSL) would try only one of two CAs with the
-/// same subject. Version 1, and a key not named by version, adds nothing.
-fn generation(key: &str) -> String {
-    match key.rsplit_once("/cryptoKeyVersions/") {
-        Some((_, v)) if v != "1" => format!(" v{v}"),
-        _ => String::new(),
-    }
+    sign(tbs, keys, key, &expected).await
 }
 
 /// What goes into a cell certificate.
@@ -147,7 +153,7 @@ pub struct CellRequest<'a> {
 
 /// Issues a cell certificate under the CA key `ca_key`.
 pub async fn cell_cert(
-    kms: &impl Kms,
+    keys: &impl Keys,
     ca: &CaCert,
     ca_key: &str,
     req: &CellRequest<'_>,
@@ -197,12 +203,12 @@ pub async fn cell_cert(
         subject_public_key_info: SubjectPublicKeyInfoOwned::from_der(spki)?,
         extensions: Some(extensions),
     };
-    sign(tbs, kms, ca_key).await
+    sign(tbs, keys, ca_key, &ca.key).await
 }
 
-async fn sign(tbs: Tbs, kms: &impl Kms, key: &str) -> Result<Vec<u8>, X509Error> {
+async fn sign(tbs: Tbs, keys: &impl Keys, key: &str, expected: &TrustedKey) -> Result<Vec<u8>, X509Error> {
     let tbs = tbs.to_der()?;
-    let signature = kms.sign(key, &tbs).await?;
+    let signature = keys::signed(keys, key, &tbs, expected).await?;
     Ok(Signed {
         tbs: AnyRef::from_der(&tbs)?,
         algorithm: ecdsa_sha256(),
@@ -251,7 +257,7 @@ fn key_id(spki: &SubjectPublicKeyInfoOwned) -> OctetString {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kms::LocalKms;
+    use crate::keys::LocalKms;
     use aws_lc_rs::signature::{ECDSA_P256_SHA256_ASN1, UnparsedPublicKey};
 
     fn verifies_under(cert: &Certificate, issuer: &Certificate) -> bool {
@@ -272,22 +278,21 @@ mod tests {
     /// an issuer by subject find the right one in a bundle holding both.
     #[tokio::test]
     async fn a_rotated_ca_has_its_own_subject() {
-        let (v1, v2) = ("r/cryptoKeyVersions/1", "r/cryptoKeyVersions/2");
-        let kms = LocalKms::generate(&[v1, v2]);
-        let subject = async |key| {
-            let der = make_ca(&kms, key, "acme", 1_793_000_000).await.unwrap();
+        let keys = LocalKms::generate(&["first", "second"]);
+        let subject = async |key, generation| {
+            let der = make_ca(&keys, key, "acme", generation, 1_793_000_000).await.unwrap();
             Certificate::from_der(&der).unwrap().tbs_certificate().subject().to_string()
         };
-        let (a, b) = (subject(v1).await, subject(v2).await);
+        let (a, b) = (subject("first", None).await, subject("second", Some(2)).await);
         assert_eq!(a, "CN=clovelly acme environment CA,O=clovelly");
         assert_eq!(b, "CN=clovelly acme environment CA v2,O=clovelly");
     }
 
     #[tokio::test]
     async fn ca_signs_a_cell_certificate_that_names_the_cell() {
-        let kms = LocalKms::generate(&["ca", "cell"]);
+        let keys = LocalKms::generate(&["ca", "cell"]);
         let now = 1_793_000_000;
-        let ca_der = make_ca(&kms, "ca", "acme", now).await.unwrap();
+        let ca_der = make_ca(&keys, "ca", "acme", None, now).await.unwrap();
         let ca_cert = Certificate::from_der(&ca_der).unwrap();
         assert!(verifies_under(&ca_cert, &ca_cert));
         let ca = CaCert::from_pem(&common::b64::pem("CERTIFICATE", &ca_der)).unwrap();
@@ -298,7 +303,7 @@ mod tests {
             subenv: "bank-a".parse().unwrap(),
             release: "clovelly-0.1.0-test".parse().unwrap(),
         };
-        let cell_spki = kms.public_key("cell").await.unwrap();
+        let cell_spki = keys.public_key("cell").await.unwrap();
         let req = CellRequest {
             spki: &cell_spki,
             dns: "bank-a.acme.cells.clovelly.internal",
@@ -306,7 +311,7 @@ mod tests {
             now,
             not_after: now + 3600,
         };
-        let der = cell_cert(&kms, &ca, "ca", &req).await.unwrap();
+        let der = cell_cert(&keys, &ca, "ca", &req).await.unwrap();
         let cert = Certificate::from_der(&der).unwrap();
         assert!(verifies_under(&cert, &ca_cert));
         let tbs = cert.tbs_certificate();

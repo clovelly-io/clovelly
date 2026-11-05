@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/cell-agent", "crates/common", "crates/egress-proxy", "crates/measure", "crates/rebuild", "crates/receipt-tool", "crates/verifier"]
+members = ["crates/cell-agent", "crates/common", "crates/egress-proxy", "crates/key-helper", "crates/measure", "crates/memory-helper", "crates/rebuild", "crates/receipt-tool", "crates/verifier"]
 exclude = ["tools/protogen"]
 resolver = "3"
 
@@ -14,7 +14,10 @@ publish = false
 # that are not named are each recorded in the decision log.
 [workspace.dependencies]
 anyhow = "1"
+aws-config = { version = "1", default-features = false, features = ["behavior-version-latest", "default-https-client", "rt-tokio"] }
 aws-lc-rs = { version = "1", default-features = false, features = ["aws-lc-sys"] }
+aws-sdk-kms = { version = "1", default-features = false, features = ["behavior-version-latest", "default-https-client", "rt-tokio"] }
+axum = { version = "0.8", default-features = false, features = ["http1", "tokio"] }
 der = { version = "0.8", features = ["alloc", "derive", "oid"] }
 hpke = { version = "0.15.0", default-features = false, features = ["alloc", "getrandom", "nistp", "aes"] }
 prost = "0.14"

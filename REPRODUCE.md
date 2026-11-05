@@ -1,8 +1,9 @@
 # Rebuilding a release
 
 This is how anyone, with no access to our infrastructure, checks that a released cell
-image is the one built from this source: rebuild it, and compare what you get with
-what we logged in Sigstore's public Rekor log when we released it. It needs nothing of
+image, and the verifier and `clovelly-keys` images a customer runs, are the ones built
+from this source: rebuild them, and compare what you get with what we logged in Sigstore's
+public Rekor log when we released them. It needs nothing of
 ours but this repository and our public release key, which is in it
 (`release/release-key.pub`).
 
@@ -38,10 +39,11 @@ The build takes about 10 minutes on 44 cores and one to two hours on 4.
    ```
 
    It builds the unsigned `prod` and `test` images (`nix build .#image-prod-unsigned`
-   and `.#image-test-unsigned`, through `release/nix.sh`) and writes their record to
+   and `.#image-test-unsigned`, through `release/nix.sh`) and the two container images
+   (`.#verifier-image-oci`, `.#clovelly-keys-image-oci`), and writes their record to
    `build/rebuild/build.txt`: the commit, each image's Nix derivation (the recipe), the
-   SHA-256 of its `disk.raw`, and its predicted RTMR1 and RTMR2. No signing key is
-   involved.
+   SHA-256 of its `disk.raw`, its predicted RTMR1 and RTMR2, and each container image's
+   digest. No signing key is involved.
 
 3. Get the release's fragment: `fragment.json` among the release's assets on GitHub
    (<https://github.com/clovelly-io/clovelly/releases/tag/v0.3.0>; it is also in the
@@ -62,8 +64,11 @@ The build takes about 10 minutes on 44 cores and one to two hours on 4.
    payload against the closed schema, the Rekor entry's inclusion proof to a checkpoint
    the log signed, the log's signed entry timestamp, and that the entry is a DSSE
    envelope over exactly this payload signed by our key. Then it compares the payload's
-   release id, commit, recipe, disk hash, RTMR1 and RTMR2 with your rebuild, one line
-   each, and exits non-zero on any difference.
+   release id, commit, recipe, disk hash, RTMR1, RTMR2 and the two image digests with your
+   rebuild, one line each, and exits non-zero on any difference.
+
+   The digests that match are the ones to pull: `ghcr.io/clovelly-io/verifier@sha256:...`
+   and `ghcr.io/clovelly-io/clovelly-keys@sha256:...`. A registry serves a digest's exact bytes.
 
 5. Do not take our copy of Rekor's key on trust: compare it with the log's own.
 

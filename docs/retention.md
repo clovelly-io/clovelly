@@ -13,7 +13,7 @@ Everything we store for you is ciphertext under keys we do not hold.
 | Sandbox memory, files, traffic | Inside the cell only, on tmpfs | The sandbox's end, and at the latest the cell's 48-hour cap |
 
 Without your DEK, none of the stored ciphertext opens, for us or for anyone. Disable your
-`dek` KMS key and it is unreadable at once, wherever a copy might be.
+`dek` key and it is unreadable at once, wherever a copy might be.
 
 ## Quotas
 

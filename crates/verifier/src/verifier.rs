@@ -2,7 +2,7 @@
 //! issues the cell certificate and wraps the sub-environment DEK to the cell's key.
 //!
 //! ```no_run
-//! # async fn demo(v: &verifier::Verifier<verifier::HttpSources, verifier::CloudKms>,
+//! # async fn demo(v: &verifier::Verifier<verifier::HttpSources, verifier::HelperClient>,
 //! #               ev: &common::evidence::Evidence, now: u64) {
 //! match v.unlock(ev, now).await {
 //!     Ok(unlocked) => { /* return cert, wrapped DEK and policy bundle */ }
@@ -31,7 +31,7 @@ use x509_cert::Certificate;
 use crate::checks::{Check, Failure, Outcome, Report};
 use crate::config::{Acceptance, Config};
 use crate::fragments::{self, FragmentError};
-use crate::kms::{Kms, KmsError};
+use crate::keys::{KeyError, Keys};
 use crate::nonce::Nonces;
 use crate::policy::{Release, ReleasePolicy};
 use crate::qvl::{self, PckInfo};
@@ -70,7 +70,7 @@ pub enum UnlockError {
     #[error("issuing the certificate: {0}")]
     Certificate(#[from] X509Error),
     #[error("decrypting the DEK: {0}")]
-    Kms(#[from] KmsError),
+    Keys(#[from] KeyError),
     #[error("wrapping the DEK: {0}")]
     Dek(#[from] dek::DekError),
     #[error("configured DEK ciphertext is not base64: {0}")]
@@ -105,7 +105,7 @@ pub enum SealError {
     #[error(transparent)]
     Template(#[from] template::TemplateError),
     #[error("decrypting the DEK: {0}")]
-    Kms(#[from] KmsError),
+    Keys(#[from] KeyError),
     #[error("the DEK: {0}")]
     Dek(#[from] dek::DekError),
     #[error("configured DEK ciphertext is not base64: {0}")]
@@ -113,7 +113,7 @@ pub enum SealError {
 }
 
 /// A verifier for one environment, with its seams: the quote trust root, the
-/// collateral, registry and endorsement sources, and the key manager. The clock is the
+/// collateral, registry and endorsement sources, and the customer's keys. The clock is the
 /// `now` (Unix seconds) every call takes.
 pub struct Verifier<S, K> {
     config: Config,
@@ -130,11 +130,11 @@ pub struct Verifier<S, K> {
     /// CA certificates `ca` replaced, kept during a rotation (`Ca::previous_cert_pem`).
     previous_cas: Vec<CaCert>,
     sources: S,
-    kms: K,
+    keys: K,
     nonces: Nonces,
 }
 
-impl<S: Sources, K: Kms> Verifier<S, K> {
+impl<S: Sources, K: Keys> Verifier<S, K> {
     /// `trust_root` is Intel's SGX root CA in production (DER); `google_root` is
     /// GCE-cc-tcb-root_1.
     pub fn new(
@@ -143,9 +143,9 @@ impl<S: Sources, K: Kms> Verifier<S, K> {
         trust_root: Vec<u8>,
         google_root: Vec<u8>,
         sources: S,
-        kms: K,
+        keys: K,
     ) -> Result<Self, SetupError> {
-        let keys = |what, pems: &[String]| {
+        let trusted = |what, pems: &[String]| {
             pems.iter()
                 .map(|p| TrustedKey::from_pem(p))
                 .collect::<Result<Vec<_>, _>>()
@@ -159,15 +159,15 @@ impl<S: Sources, K: Kms> Verifier<S, K> {
                 .iter()
                 .map(|p| CaCert::from_pem(p))
                 .collect::<Result<_, _>>()?,
-            release_keys: keys("release_keys", &config.release_keys)?,
-            rekor_keys: keys("rekor_keys", &config.rekor_keys)?,
+            release_keys: trusted("release_keys", &config.release_keys)?,
+            rekor_keys: trusted("rekor_keys", &config.rekor_keys)?,
             config,
             policy: RwLock::new(Arc::new(policy.clone())),
             base: policy,
             trust_root,
             google_root,
             sources,
-            kms,
+            keys,
             nonces: Nonces::default(),
         })
     }
@@ -351,8 +351,8 @@ impl<S: Sources, K: Kms> Verifier<S, K> {
             .valid_until;
         let ciphertext = common::b64::decode(&subenv.wrapped_dek)?;
         let (cell_cert, mut plain) = tokio::try_join!(
-            async { Ok::<_, UnlockError>(x509::cell_cert(&self.kms, &self.ca, &self.config.ca.kms_key, &request).await?) },
-            async { Ok::<_, UnlockError>(self.kms.decrypt(&self.config.dek_kms_key, &ciphertext).await?) },
+            async { Ok::<_, UnlockError>(x509::cell_cert(&self.keys, &self.ca, &self.config.ca.key, &request).await?) },
+            async { Ok::<_, UnlockError>(self.keys.decrypt(&self.config.dek_key, &ciphertext).await?) },
         )?;
         let dek = Dek::copy_from(&plain);
         dek::wipe(&mut plain);
@@ -393,7 +393,7 @@ impl<S: Sources, K: Kms> Verifier<S, K> {
         Ok(template::seal_key(&dek, &self.config.env, subenv, digest)?)
     }
 
-    /// `subenv`'s DEK, decrypted with KMS for each call; the plaintext is wiped, and the
+    /// `subenv`'s DEK, decrypted by the key helper for each call; the plaintext is wiped, and the
     /// [`Dek`] wipes itself on drop.
     async fn subenv_dek(&self, subenv: &SubenvId) -> Result<Dek, SealError> {
         let config = self
@@ -402,7 +402,7 @@ impl<S: Sources, K: Kms> Verifier<S, K> {
             .get(subenv)
             .ok_or_else(|| SealError::UnknownSubenv(subenv.clone()))?;
         let ciphertext = common::b64::decode(&config.wrapped_dek)?;
-        let mut plain = self.kms.decrypt(&self.config.dek_kms_key, &ciphertext).await?;
+        let mut plain = self.keys.decrypt(&self.config.dek_key, &ciphertext).await?;
         let dek = Dek::copy_from(&plain);
         dek::wipe(&mut plain);
         Ok(dek?)
@@ -665,7 +665,7 @@ mod release_window {
     use super::*;
     use crate::config::{Ca, Subenv};
     use crate::fragments::tests::{Key, bundle, payload};
-    use crate::kms::LocalKms;
+    use crate::keys::LocalKms;
     use crate::sources::Collateral;
 
     const H: u64 = 3600;
@@ -709,8 +709,8 @@ mod release_window {
                     "a".parse().unwrap(),
                     Subenv { wrapped_dek: String::new(), policy_bundle: "{}".into(), policy_sig: String::new() },
                 )]),
-                ca: Ca { kms_key: "ca".into(), cert_pem: common::b64::pem("CERTIFICATE", p.self_signed(&ca_key).unwrap().der()), previous_cert_pem: vec![] },
-                dek_kms_key: "dek".into(),
+                ca: Ca { key: "ca".into(), cert_pem: common::b64::pem("CERTIFICATE", p.self_signed(&ca_key).unwrap().der()), previous_cert_pem: vec![] },
+                dek_key: "dek".into(),
                 release_keys: vec![self.us.pem()],
                 policy_key_pem: String::new(),
                 sdk_token_sha256: None,
@@ -743,14 +743,14 @@ mod release_window {
     }
 
     /// Checks 9 and 10 for `release` at `now`: whether each passed.
-    fn accepts<S: Sources, K: Kms>(v: &Verifier<S, K>, release: &str, now: u64) -> (bool, bool) {
+    fn accepts<S: Sources, K: Keys>(v: &Verifier<S, K>, release: &str, now: u64) -> (bool, bool) {
         let id: ReleaseId = release.parse().unwrap();
         let policy = v.policy();
         let (w, e) = v.window(&id, policy.release(&id), now);
         (w == Outcome::Pass, e == Outcome::Pass)
     }
 
-    fn loaded<S: Sources, K: Kms>(v: &Verifier<S, K>, bundles: &[FragmentBundle]) {
+    fn loaded<S: Sources, K: Keys>(v: &Verifier<S, K>, bundles: &[FragmentBundle]) {
         for r in v.load_fragments(bundles) {
             r.unwrap();
         }

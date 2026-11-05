@@ -1,0 +1,34 @@
+# The verifier on a machine of your own (docs/verifier-other.md). Your own TLS terminator carries
+# gRPC, HTTP/2 end to end, from a publicly trusted certificate to 127.0.0.1:8080.
+#
+#   KEYS_IMAGE, VERIFIER_IMAGE   the published images by digest, or your own helper as KEYS_IMAGE
+#   KEYS_BACKEND                 gcp or aws, for a reference helper on a machine with that cloud's role
+#   CLOVELLY_OUT                 the directory `init` wrote
+name: clovelly-verifier
+services:
+  verifier:
+    image: ${VERIFIER_IMAGE:?set VERIFIER_IMAGE to the published image, by digest}
+    platform: linux/amd64
+    # Exactly one instance, always on: nonces and the receipt log are in its memory.
+    restart: always
+    deploy:
+      replicas: 1
+    env_file:
+      - path: ${CLOVELLY_OUT:?set CLOVELLY_OUT to the directory init wrote}/verifier.env
+        format: raw
+    environment:
+      PORT: "8080"
+    ports:
+      - "127.0.0.1:8080:8080"
+  # In the verifier's network namespace: they share loopback, and nothing else reaches it.
+  keys:
+    image: ${KEYS_IMAGE:?set KEYS_IMAGE to the published image, by digest, or to your own helper}
+    platform: linux/amd64
+    network_mode: service:verifier
+    restart: always
+    deploy:
+      replicas: 1
+    command: ["serve", "${KEYS_BACKEND:-aws}"]
+    env_file:
+      - path: ${CLOVELLY_OUT}/keys.env
+        format: raw

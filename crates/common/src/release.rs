@@ -55,7 +55,8 @@ pub enum PayloadError {
 ///     "disk_sha256": "<64 hex>" },
 ///   "measurements": {
 ///     "firmware": [ { "mrtd": "<96 hex>", "rtmr0": "<96 hex>" } ],
-///     "rtmr1": "<96 hex>", "rtmr2": "<96 hex>", "rtmr3": "<96 hex>" } }
+///     "rtmr1": "<96 hex>", "rtmr2": "<96 hex>", "rtmr3": "<96 hex>" },
+///   "images": { "verifier": "sha256:<64 hex>", "clovelly-keys": "sha256:<64 hex>" } }
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -67,6 +68,19 @@ pub struct ReleasePayload {
     pub recipe: DrvPath,
     pub provenance: Provenance,
     pub measurements: Measurements,
+    /// The container images built with this release, from phase 8: a customer pulls these
+    /// digests. Releases before 0.4.0 have none, and their signed bytes stay as they are.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub images: Option<Images>,
+}
+
+/// The digests of the images a customer runs beside their key manager.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Images {
+    pub verifier: ImageDigest,
+    #[serde(rename = "clovelly-keys")]
+    pub clovelly_keys: ImageDigest,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -285,6 +299,13 @@ macro_rules! checked_string {
         }
     };
 }
+
+checked_string!(
+    /// An OCI image manifest digest, `sha256:<64 hex>`.
+    ImageDigest,
+    "image digest (sha256:<64 hex>)",
+    |s| s.strip_prefix("sha256:").is_some_and(|h| h.len() == 64 && h.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f')))
+);
 
 #[derive(Debug, thiserror::Error)]
 #[error("{value:?} is not a {what}")]

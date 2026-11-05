@@ -1,152 +1,105 @@
 # Deploying the verifier
 
-The verifier is yours: it runs in your Google Cloud project, holds your environment CA
-key and your data encryption keys in your Cloud KMS, and decides which cells may serve
-your environment. We never operate it. This guide deploys it to Cloud Run in a fresh
-project in under an hour. What it defends against, and what it does not, is in
-[threat-model.md](threat-model.md).
+The verifier is yours. It runs on your platform and decides which cells may serve your environment.
+Your environment CA key and data encryption keys stay in your key manager, and we never operate any
+of this. What it defends against, and what it does not, is in [threat-model.md](threat-model.md).
 
-## What you get
+You start two published containers next to your key manager: the verifier, and a key helper that is the
+only thing that talks to your keys. You need no build tools and no checkout of this repository.
 
-- A Cloud Run service (`verifier`) that cells call at boot: `GetNonce`, `Unlock`, and
-  `GetCA` for SDKs (`proto/clovelly/verifier/v1/verifier.proto`).
-- A service account, `clovelly-verifier`, that may sign with your CA key and decrypt your
-  DEKs, and nothing else.
-- A KMS key ring, `clovelly-verifier`, with three keys:
-  - `env-ca` (EC P-256, signing): your environment CA. Every cell certificate chains to
-    it.
-  - `policy` (EC P-256, signing): signs each sub-environment's policy bundle.
-  - `dek` (symmetric): wraps each sub-environment's DEK at rest. Disabling or destroying
-    this key stops all new unlocks at once.
-- `deploy/out/<env>/config.json` and `ca.pem`: the verifier's configuration and your CA
-  certificate. Neither holds a secret; DEKs appear only as KMS ciphertext.
+## What your platform must give it
 
-## Before you start (10 minutes)
+- **An HTTPS address** with a publicly trusted certificate that carries gRPC (HTTP/2 end to end). The
+  verifier itself speaks plain HTTP/2 on `PORT` (8080) behind whatever terminates your TLS.
+- **Two containers sharing loopback**: a sidecar, a task, a pod, a Compose service on the verifier's
+  network namespace.
+- **An identity** your key manager will let sign and decrypt with three keys, with no long-lived access
+  key where the platform has workload identity.
+- **Exactly one instance, always on.** Nonces and the receipt log are in its memory: a second instance
+  would not know the first's nonces, and a restart loses receipts not yet read.
 
-- A Google Cloud project with billing, and an account that can enable APIs, create
-  service accounts, KMS keys and Artifact Registry repositories, and deploy Cloud Run.
-- On your machine: `gcloud` (logged in), `docker`, `jq`, `openssl`, `git`, and a Rust
-  toolchain (`rustup`; the repository pins the version) for the operator commands.
-- Nix, or Docker to run Nix in a container (`release/nix.sh` does this), to build the
-  verifier reproducibly.
-- From us: the release public key you will trust, `release/release-key.pub` in this
-  repository, and the current signed release policy (a JWS file), at
-  `https://app.clovelly.io/release-policy.jws`. The verifier checks the policy's signature
-  against the key, so it does not matter where the file came from.
+Cells reach a verifier outside Google from the addresses in [static-egress-ips.md](static-egress-ips.md),
+which you may allowlist. They still authenticate by attestation and by nothing about the network.
 
-## 1. Build the verifier image (10–20 minutes the first time)
+## The sequence
 
-```bash
-git clone https://github.com/clovelly-io/clovelly && cd clovelly
-release/nix.sh build-to verifier-image build/verifier-image
-```
+The console walks you through this when you create an environment, with your environment id in every
+command. Environment and sub-environment ids are lower-case DNS labels: cells of sub-environment `main`
+get certificates for `main.MY_ENV.cells.clovelly.internal`.
 
-The image is built hermetically from the pinned inputs; rebuilding the same commit gives
-the same image digest, so you can compare it with ours.
+1. **Choose the images.** Pull by digest. The digests are on the
+   [release page](https://github.com/clovelly-io/clovelly/releases) and in the signed payload logged in
+   Rekor; [REPRODUCE.md](../REPRODUCE.md) rebuilds both and compares, if you want to check rather than trust:
 
-## 2. Create the keys and configuration (5 minutes)
+   ```bash
+   export KEYS_IMAGE=ghcr.io/clovelly-io/clovelly-keys@sha256:DIGEST VERIFIER_IMAGE=ghcr.io/clovelly-io/verifier@sha256:DIGEST
+   ```
 
-```bash
-deploy/verifier.sh setup PROJECT REGION ENV SUBENV...
-```
+2. **Make the keys and the configuration.** Three keys: `env-ca` signs a certificate for every cell,
+   `policy` signs each sub-environment's policy bundle, and `dek` wraps each sub-environment's data
+   encryption key at rest. Setup writes everything the verifier needs into a directory, none of it secret,
+   and prints your SDK token once:
 
-For example `deploy/verifier.sh setup acme-verifier us-central1 acme bank-a bank-b`.
-Environment and sub-environment ids are lower-case DNS labels; cells of sub-environment
-`bank-a` get certificates for `bank-a.acme.cells.clovelly.internal`. For each
-sub-environment the script generates a 256-bit DEK, which leaves `openssl` only through
-a pipe into KMS. It also signs a default-deny policy bundle with your policy key and
-creates your CA certificate with your CA key. It grants the verifier's service account
-`roles/cloudkms.signerVerifier` and `roles/cloudkms.cryptoKeyDecrypter` on the key ring,
-and nothing at project level.
+   - `config.json`, also in `verifier.env` with the release policy: the CA certificate, one wrapped DEK and
+     signed default-deny policy bundle per sub-environment, our release key and the index of our releases, the
+     release of this image pinned, and the SDK token's hash.
+   - `keys.env`: the keys the helper serves.
+   - `ca.pem`: your CA certificate, for your SDK. `check-vector.json`: for `verifier check-keys`.
 
-Then add the release key you trust:
+3. **Start the two containers** on your platform, with `verifier.env` and `keys.env`.
 
-```bash
-jq --rawfile k release/release-key.pub '.release_keys = [$k]' deploy/out/ENV/config.json > c && mv c deploy/out/ENV/config.json
-```
+4. **Paste the address into the console.** It checks that the verifier answers and serves your CA, then
+   creates the environment and shows its first key, once.
 
-To have new releases reach the verifier by themselves, point it at the index of our
-releases:
+For steps 2 and 3, take the recipe for where your keys live. A recipe is a convenience we test, not a
+requirement:
 
-```bash
-jq '.fragments_url = "https://raw.githubusercontent.com/clovelly-io/clovelly/main/releases/fragments.json"' deploy/out/ENV/config.json > c && mv c deploy/out/ENV/config.json
-```
+- [AWS](verifier-aws.md): AWS KMS, Fargate behind a load balancer on your certificate.
+- [Google Cloud](verifier-gcp.md): Cloud KMS, Cloud Run with the helper as a sidecar.
+- [Anywhere else](verifier-other.md): any key manager, through a helper you write or copy, on any platform;
+  a Compose file for a machine of your own.
 
-The verifier fetches it at start-up, before it listens, and every 10 minutes. It trusts
-the file only as far as it can check it: a release applies only with a signature from a
-key in `release_keys` and a Rekor entry that verifies under the public log's key, which
-is built in. Only final releases are in the index, and each is accepted once its notice
-window ends. A verifier that cannot fetch the index, or fetches one that is stale or
-damaged, keeps every release it has already applied. Those are held in memory, so a
-verifier that restarts during an outage has only your signed release policy until a
-fetch succeeds. Alert on `jsonPayload.event="fragments-fetch"`.
+## Keys that already exist
 
-To accept a release before its notice window ends (72 hours, 24 for security releases),
-add its id to `pinned_releases`. A release past its `valid_until` is refused even if
-pinned.
+`clovelly-keys init` creates keys. If yours exist, run any helper that serves them and use `verifier init`,
+the same setup through the helper interface, named in [verifier-other.md](verifier-other.md).
 
-## 3. Deploy (5 minutes)
+## Accepting releases
 
-```bash
-curl -fsS https://app.clovelly.io/release-policy.jws -o release-policy.jws
-deploy/verifier.sh deploy PROJECT REGION ENV verifier build/verifier-image/*.tar.gz release-policy.jws
-```
+`init` pins the release of the image you ran it from: the verifier accepts that release at once and no
+other, and you move by pinning the next one. To follow our releases instead, remove `pinned_releases` from
+the configuration: the verifier then applies each new release from the index, once its notice window ends
+(72 hours, 24 for security releases).
 
-This pushes the image to Artifact Registry and deploys the Cloud Run service, then prints
-its URL. Settings, and why:
+The verifier fetches the index at start-up, before it listens, and every 10 minutes. It trusts the file only as
+far as it can check it: a release applies only with a signature from a key in `release_keys` and a Rekor entry
+that verifies under the public log's key, which is built in. A verifier that cannot fetch the index, or fetches
+one that is stale or damaged, keeps every release it has already applied. Those are held in memory, so a verifier
+that restarts during an outage has only your signed release policy until a fetch succeeds. A release past its
+`valid_until` is refused even if pinned. Alert on the log event `fragments-fetch`.
 
-| Setting | Why |
-|---|---|
-| `--max-instances=1` | Nonces are held in the instance's memory; one instance keeps them single-use. |
-| `--no-invoker-iam-check` | Cells prove themselves by attestation, not by a Google identity. No `allUsers` IAM binding is added. |
-| `--use-http2` | The API is gRPC. |
-| `collateral_cache_secs` 3600 | Intel collateral, Google's host registry and endorsements are reused for up to an hour; check 2 refuses CRLs fetched longer ago. 0 fetches everything for every unlock. |
+## Watching it
 
-## 4. Hand over (5 minutes)
+- Every unlock attempt is one JSON log line (`event: "unlock"`) with the outcome of each of the ten checks, the
+  quote's measurements and the caller's address. A cell is told only the number of the check that refused it. A
+  refusal is either a bug or an attack: alert on `result: "refused"`.
+- A key helper that fails logs `event: "key-helper"`, with what it answered. The unlock fails closed, and the
+  cell asks again. Alert on it: at the end of a lease, a cell that cannot renew ends its sandboxes.
+- To revoke the environment, disable the `dek` key. No cell unlocks after that, and running cells keep their keys
+  only until their 60-minute lease ends.
 
-- Paste the URL into the console's onboarding, with your environment id. Your sub-environment
-  ids go on its Settings tab. The control plane passes them to cells as instance metadata (`clovelly-verifier`, `clovelly-env`,
-  `clovelly-subenv`). Metadata is untrusted: a wrong URL only means no unlock.
-- Give `deploy/out/ENV/ca.pem` (or `GetCA`) to your SDK configuration. The SDK refuses
-  any cell whose certificate does not chain to it.
+## Publishing a policy
 
-## 5. Try it (5 minutes)
-
-Before the control plane exists, boot one cell by hand in the cell project and watch
-it unlock. Use the `prod` image of a release in your policy (a release inside its
-notice window must be in `pinned_releases`), the cell shape below (c3-standard-8 with Secure Boot, no vTPM, no integrity
-monitoring and no display device), and only
-these three metadata keys:
-
-```bash
-gcloud compute instances create try-cell --zone=us-central1-a --machine-type=c3-standard-8 \
-  --image=IMAGE --network-interface=network=default,nic-type=GVNIC,no-address \
-  --service-account=SA --scopes=cloud-platform --maintenance-policy=TERMINATE \
-  --max-run-duration=1h --instance-termination-action=DELETE \
-  --confidential-compute-type=TDX --shielded-secure-boot --no-shielded-vtpm --no-shielded-integrity-monitoring \
-  --metadata='^@^clovelly-env=ENV@clovelly-subenv=SUBENV@clovelly-verifier=URL'
-```
-
-Within a minute the verifier logs `unlock accepted` (next step). The `test` image does
-not do this on its own: it runs the in-guest harness and unlocks only when the job
-tells it to. Delete the cell afterwards.
-
-## 6. Check it (5 minutes)
-
-- Every unlock attempt is one JSON log line (Logs Explorer, `jsonPayload.event="unlock"`)
-  with the outcome of each of the ten checks, the quote's measurements and the caller's
-  address. A cell is told only the number of the check that refused it.
-- A refusal is either a bug or an attack. Alert on `jsonPayload.result="refused"`.
-- To revoke the environment, disable the `dek` key version: no cell unlocks after that,
-  and running cells keep their keys only until their 60-minute lease ends.
+A new sub-environment's bundle is default deny and valid for 30 days. To allow a destination or extend it, sign
+a new bundle with a higher `version` (the format is in `crates/common/src/bundle.rs`) through your helper,
+`verifier sign --key POLICY_KEY --detached < bundle.json`, put both in the configuration and restart the
+verifier. Cells take it within 60 seconds. Run `init` again with a new `--subenv` to add a sub-environment: what
+exists is kept.
 
 ## Updating
 
-Rotating your keys has its own page: [key-rotation.md](key-rotation.md). What to do when you
-leave: [offboarding.md](offboarding.md).
+Rotating your keys has its own page: [key-rotation.md](key-rotation.md). What to do when you leave:
+[offboarding.md](offboarding.md).
 
-- New release policy: redeploy with the new JWS (step 3).
-- New verifier version: rebuild (step 1) and redeploy (step 3).
-- New sub-environment: run `setup` again with all sub-environments (existing keys and
-  DEKs are kept), then redeploy.
-- New release, with `fragments_url` set: nothing to do.
+- **New verifier version:** the new digests in the same recipe, and pin the new release.
+- **New release, not pinned:** nothing to do.

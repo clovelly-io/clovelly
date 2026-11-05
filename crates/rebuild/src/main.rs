@@ -56,13 +56,21 @@ fn matches(a: &Flags<'_>) -> anyhow::Result<()> {
         ("rtmr1", p.measurements.rtmr1.to_string(), r.prod.rtmr1.to_string()),
         ("rtmr2", p.measurements.rtmr2.to_string(), r.prod.rtmr2.to_string()),
     ];
+    // Releases before 0.4.0 logged no container images.
+    let images = p.images.iter().flat_map(|i| {
+        [
+            ("verifier image", i.verifier.to_string(), r.images.verifier.to_string()),
+            ("clovelly-keys image", i.clovelly_keys.to_string(), r.images.clovelly_keys.to_string()),
+        ]
+    });
+    let pairs: Vec<_> = pairs.into_iter().chain(images).collect();
     let mut differ = 0;
     for (k, logged, rebuilt) in &pairs {
         if logged == rebuilt {
-            println!("match     {k:<12} {logged}");
+            println!("match     {k:<20} {logged}");
         } else {
             differ += 1;
-            println!("DIFFERENT {k:<12} logged {logged}, rebuilt {rebuilt}");
+            println!("DIFFERENT {k:<20} logged {logged}, rebuilt {rebuilt}");
         }
     }
     if differ > 0 {

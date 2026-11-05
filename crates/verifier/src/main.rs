@@ -1,17 +1,25 @@
 //! The verifier binary.
 //!
 //! ```text
-//! verifier [serve]                          the gRPC service (Cloud Run); reads
-//!                                           CLOVELLY_CONFIG, CLOVELLY_RELEASE_POLICY and PORT
-//!                                           (and, built with `test-clock` only,
-//!                                           CLOVELLY_TEST_CLOCK_OFFSET_SECS)
-//! verifier make-ca --kms-key KEY --env ENV  prints a new self-signed environment CA
-//! verifier sign --kms-key KEY [--detached]  signs stdin as a JWS (ES256)
-//! verifier public-key --kms-key KEY         prints a KMS key's public key (PEM)
+//! verifier [serve]                     the gRPC service; reads CLOVELLY_CONFIG,
+//!                                      CLOVELLY_RELEASE_POLICY, CLOVELLY_KEYS_URL and PORT
+//!                                      (and, built with `test-clock` only,
+//!                                      CLOVELLY_TEST_CLOCK_OFFSET_SECS)
+//! verifier init --env E --subenv S... --ca-key K --policy-key K --dek-key K [--out DIR]
+//!                                      the configuration, for keys that already exist
+//!                                      behind any helper (`verifier::init`)
+//! verifier check-keys URL --sign-key K... --dek-key K [--vector FILE|JSON]
+//!                                      the conformance suite for a helper
+//! verifier make-ca --key K --env E [--generation N]   prints a new self-signed CA
+//! verifier sign --key K [--detached]   signs stdin as a JWS (ES256)
+//! verifier public-key --key K          prints a key's public key (PEM)
+//! verifier rewrap --key K              stdin: a wrapped DEK (base64); decrypts and encrypts
+//!                                      it again under K's current version
 //! ```
 //!
-//! The operator commands use the token in `CLOVELLY_ACCESS_TOKEN`
-//! (`gcloud auth print-access-token`).
+//! Every command but `check-keys` reaches the customer's keys through the helper at
+//! CLOVELLY_KEYS_URL (`docs/key-helper.md`); the commands other than `serve` default to
+//! http://127.0.0.1:8200.
 
 use std::io::Read;
 use std::sync::Arc;
@@ -20,9 +28,11 @@ use std::time::Duration;
 use anyhow::{Context, bail};
 use common::release::FragmentBundle;
 use serde_json::json;
+use verifier::check_keys::{self, Suite};
 use verifier::config::Config;
+use verifier::init::{self, Args, KeyNames};
 use verifier::jws::{self, TrustedKey};
-use verifier::kms::{CloudKms, Kms, Token};
+use verifier::keys::{self, HelperClient, Keys, KeysUrl};
 use verifier::policy::ReleasePolicy;
 use verifier::service::{self, Clock, Service, VerifierServer};
 use verifier::{HttpSources, Verifier};
@@ -41,31 +51,83 @@ async fn main() -> anyhow::Result<()> {
     let (cmd, rest) = args.split_first().map_or(("serve", &[][..]), |(c, r)| (c.as_str(), r));
     match cmd {
         "serve" => serve().await,
+        "init" => {
+            let names = KeyNames { ca: flag(rest, "--ca-key")?, policy: flag(rest, "--policy-key")?, dek: flag(rest, "--dek-key")? };
+            let (request, out) = Args::parse(rest)?.request(env!("CARGO_PKG_VERSION"), service::now()).await?;
+            let setup = init::init(&operator_keys()?, names, request).await?;
+            setup.write(&out)?;
+            print!("{}", setup.summary(&out));
+            Ok(())
+        }
+        "check-keys" => check(rest).await,
         "make-ca" => {
-            let (key, env) = (flag(rest, "--kms-key")?, flag(rest, "--env")?);
-            let der = verifier::x509::make_ca(&operator_kms()?, &key, &env, service::now()).await?;
+            let (key, env) = (flag(rest, "--key")?, flag(rest, "--env")?);
+            let generation = init::one(rest, "--generation").map(str::parse).transpose().context("--generation")?;
+            let der = verifier::x509::make_ca(&operator_keys()?, &key, &env, generation, service::now()).await?;
             print!("{}", common::b64::pem("CERTIFICATE", &der));
             Ok(())
         }
         "sign" => {
-            let key = flag(rest, "--kms-key")?;
+            let key = flag(rest, "--key")?;
             let mut payload = Vec::new();
             std::io::stdin().read_to_end(&mut payload)?;
-            let input = jws::signing_input(&payload);
-            let sig = operator_kms()?.sign(&key, input.as_bytes()).await?;
+            let client = operator_keys()?;
+            let expected = keys::trusted(&client, &key).await?;
+            let sig = keys::signed(&client, &key, jws::signing_input(&payload).as_bytes(), &expected).await?;
             println!("{}", jws::assemble(&payload, &sig, rest.iter().any(|a| a == "--detached"))?);
             Ok(())
         }
         "public-key" => {
-            let key = flag(rest, "--kms-key")?;
-            print!("{}", common::b64::pem("PUBLIC KEY", &operator_kms()?.public_key(&key).await?));
+            let key = flag(rest, "--key")?;
+            print!("{}", common::b64::pem("PUBLIC KEY", &operator_keys()?.public_key(&key).await?));
             Ok(())
         }
-        other => bail!("unknown command {other:?}; expected serve, make-ca, sign or public-key"),
+        "rewrap" => {
+            let key = flag(rest, "--key")?;
+            let mut wrapped = String::new();
+            std::io::stdin().read_to_string(&mut wrapped)?;
+            let client = operator_keys()?;
+            let mut plain = client.decrypt(&key, &common::b64::decode(wrapped.trim())?).await?;
+            let rewrapped = client.encrypt(&key, &plain).await;
+            common::dek::wipe(&mut plain);
+            println!("{}", common::b64::encode(&rewrapped?));
+            Ok(())
+        }
+        other => bail!("unknown command {other:?}; expected serve, init, check-keys, make-ca, sign, public-key or rewrap"),
     }
 }
 
+/// `check-keys`: prints one line per check and fails if any failed.
+async fn check(rest: &[String]) -> anyhow::Result<()> {
+    let url = rest.first().filter(|u| !u.starts_with("--")).context("usage: verifier check-keys URL --sign-key K... --dek-key K [--vector FILE|JSON]")?;
+    let suite = Suite {
+        sign_keys: init::all(rest, "--sign-key").into_iter().map(str::to_owned).collect(),
+        dek_key: flag(rest, "--dek-key")?,
+        // A file, or the JSON itself where a container has no file to read.
+        vector: init::one(rest, "--vector")
+            .map(|v| {
+                let text = if v.starts_with('{') { v.to_owned() } else { std::fs::read_to_string(v).with_context(|| v.to_owned())? };
+                anyhow::Ok(serde_json::from_str(&text).context("--vector")?)
+            })
+            .transpose()?,
+    };
+    if suite.sign_keys.is_empty() {
+        bail!("at least one --sign-key is required");
+    }
+    let lines = check_keys::run(url, &suite).await;
+    for line in &lines {
+        println!("{line}");
+    }
+    if !check_keys::passed(&lines) {
+        bail!("the helper at {url} does not meet the contract (docs/key-helper.md)");
+    }
+    println!("the helper at {url} meets the contract");
+    Ok(())
+}
+
 async fn serve() -> anyhow::Result<()> {
+    // First, so that an address off loopback stops the verifier whatever else is wrong.
+    let helper = HelperClient::new(env("CLOVELLY_KEYS_URL")?.parse::<KeysUrl>()?)?;
     let config: Config = serde_json::from_str(&env("CLOVELLY_CONFIG")?).context("CLOVELLY_CONFIG")?;
     if config.collateral_cache_secs > verifier::verifier::COLLATERAL_MAX_AGE_SECS {
         bail!("collateral_cache_secs is over an hour; check 2 would refuse every cached CRL");
@@ -101,7 +163,7 @@ async fn serve() -> anyhow::Result<()> {
         verifier::INTEL_ROOT.to_vec(),
         verifier::GOOGLE_ROOT.to_vec(),
         sources,
-        CloudKms::new(Token::Metadata),
+        helper,
     )?);
     // Fragments are in force before the first unlock; then refreshed in the background.
     let http = reqwest::Client::builder().timeout(Duration::from_secs(30)).build()?;
@@ -136,7 +198,7 @@ fn clock() -> anyhow::Result<Clock> {
 /// Fetches and loads the fragments at `url`, if there is one, and logs each outcome, the
 /// releases in force and any expiry warning for a pinned release. A failed fetch keeps
 /// the fragments already loaded.
-async fn refresh<S: verifier::Sources, K: Kms>(v: &Verifier<S, K>, http: &reqwest::Client, url: Option<&str>, clock: Clock) {
+async fn refresh<S: verifier::Sources, K: Keys>(v: &Verifier<S, K>, http: &reqwest::Client, url: Option<&str>, clock: Clock) {
     if let Some(url) = url {
         match fetch_fragments(http, url).await {
             Ok(bundles) => {
@@ -181,8 +243,10 @@ async fn fetch_fragments(http: &reqwest::Client, url: &str) -> anyhow::Result<Ve
     Ok(serde_json::from_slice(&body)?)
 }
 
-fn operator_kms() -> anyhow::Result<CloudKms> {
-    Ok(CloudKms::new(Token::Fixed(env("CLOVELLY_ACCESS_TOKEN")?)))
+/// The helper an operator command talks to.
+fn operator_keys() -> anyhow::Result<HelperClient> {
+    let url = std::env::var("CLOVELLY_KEYS_URL").unwrap_or_else(|_| init::DEFAULT_KEYS_URL.to_owned());
+    Ok(HelperClient::new(url.parse::<KeysUrl>()?)?)
 }
 
 fn env(name: &str) -> anyhow::Result<String> {

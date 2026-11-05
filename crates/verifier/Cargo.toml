@@ -26,6 +26,12 @@ x509-cert.workspace = true
 # The service clock can be moved by CLOVELLY_TEST_CLOCK_OFFSET_SECS. Only the staging test
 # image (`verifier-image-test-clock`) is built with it; never a customer's verifier.
 test-clock = []
+# `LocalKms` and the evidence corpus: test code. No released binary or image is built with
+# this (a test scans them for it).
+test-keys = []
 
 [dev-dependencies]
 rcgen = { workspace = true }
+# The integration tests read the corpus types; a normal build of this crate does not get the feature.
+verifier = { path = ".", features = ["test-keys"] }
+memory-helper = { path = "../memory-helper" }

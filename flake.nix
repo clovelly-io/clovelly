@@ -29,7 +29,11 @@
           egress-proxy
           measure
           verifier
+          key-helper
           verifier-image
+          clovelly-keys-image
+          verifier-image-oci
+          clovelly-keys-image-oci
           verifier-image-test-clock
           runsc
           attest-tools

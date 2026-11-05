@@ -1,41 +1,31 @@
 # Your first sandbox
 
-From nothing to a sandbox running your code, in under an hour. You need a Google Cloud
-project with billing, a card for your Clovelly account, and the console at
-[app.clovelly.io](https://app.clovelly.io), which gives you the control plane's address, its CA
-certificate, and the release policy your verifier checks against the public release key.
+From nothing to a sandbox running your code, in under an hour. You need an account on your own cloud for your keys and
+your verifier, a card for your Clovelly account, and the console at [app.clovelly.io](https://app.clovelly.io). You can
+look around the console before any of this.
 
-## 1. Deploy your verifier (about 40 minutes)
+## 1. Create your environment (about 20 minutes)
 
-Follow [verifier-deploy.md](verifier-deploy.md) through step 3, in your own project:
+Sign in, name your organization, and choose **New environment**. Signing up and all of this are free and need no card.
 
-```bash
-deploy/verifier.sh setup MY_PROJECT us-central1 MY_ENV main
-```
-
-The verifier is yours, and so are the keys it holds: nobody at Clovelly can read them. Note
-what the deploy printed (your verifier's URL) and `deploy/out/MY_ENV/ca.pem` (your
-environment CA).
-
-Choose an SDK token now, so your SDK can seal credentials and read your receipts, and put its
-SHA-256 in the verifier's configuration before you deploy:
+Your verifier is yours, and so are the keys it holds: nobody at Clovelly can read them. The console asks for an environment
+id, then where your keys live, and shows the commands for that, which are the ones in [AWS](verifier-aws.md),
+[Google Cloud](verifier-gcp.md) and [anywhere else](verifier-other.md). In short: one setup command makes three keys in your
+key manager and a configuration, and prints your SDK token, once; you start two published containers next to your key
+manager; you paste the verifier's address. Keep the token:
 
 ```bash
-export CLOVELLY_VERIFIER_TOKEN=$(openssl rand -hex 32)
-jq --arg h "$(printf %s "$CLOVELLY_VERIFIER_TOKEN" | shasum -a 256 | cut -d' ' -f1)" \
-  '.sdk_token_sha256 = $h' deploy/out/MY_ENV/config.json > c && mv c deploy/out/MY_ENV/config.json
+export CLOVELLY_VERIFIER_TOKEN=THE_TOKEN_SETUP_PRINTED
 ```
 
-## 2. Create your environment (5 minutes)
+The console checks that your verifier answers and serves your CA, creates your environment and shows its first API key,
+**once**. Keep the key secret: it can place sandboxes as you.
 
-Sign in to the console at [app.clovelly.io](https://app.clovelly.io) and name your organization.
-Its onboarding page shows these commands again, checks that your verifier answers and serves your
-CA, creates your environment and shows its first API key, **once**. Keep the key secret: it can
-place sandboxes as you. Signing up and all of this are free and need no card.
+## 2. Turn on compute (5 minutes)
 
-Then, on the Billing tab, add a card: no cell boots until your organization has a card on file and
-credit above zero ([billing.md](billing.md)). On the Settings tab, add your sub-environment and its
-pool; the pool's defaults boot nothing until a sandbox asks for a cell.
+On the Billing tab, add a card: no cell boots until your organization has a card on file and credit above zero
+([billing.md](billing.md)). On the Settings tab, add your sub-environment `main` and its pool; the pool's defaults boot
+nothing until a sandbox asks for a cell.
 
 The console shows the API's address and CA. Point the SDK at them:
 
@@ -46,8 +36,10 @@ export CLOVELLY_API_URL=API_ADDRESS CLOVELLY_API_TOKEN=clv_MY_ENV_... CLOVELLY_A
 ## 3. Install an SDK
 
 ```bash
-pip install ./sdks/python        # or: npm install ./sdks/typescript
+pip install "clovelly @ https://github.com/clovelly-io/clovelly/archive/refs/heads/main.tar.gz#subdirectory=sdks/python"
 ```
+
+The TypeScript SDK is in `sdks/typescript`: clone this repository, and `npm install ./sdks/typescript`.
 
 ## 4. Run a sandbox
 
@@ -57,7 +49,7 @@ response says it was cold. After that, a create takes a fraction of a second.
 ```python
 import clovelly
 
-env = clovelly.Environment(VERIFIER_URL, "MY_ENV", "deploy/out/MY_ENV/ca.pem")
+env = clovelly.Environment(VERIFIER_URL, "MY_ENV", "clovelly-out/MY_ENV/ca.pem")
 with env.sandbox("main", cpu=1, memory=2, timeout=900) as sb:
     print(sb.exec(["python3", "-c", "print('hello from the cell')"]).stdout.decode())
     receipt = sb.close()
@@ -72,8 +64,7 @@ verifier issued that certificate only after checking the cell's attestation.
 Sandboxes never see real credentials. The verifier seals yours; the sandbox holds a
 placeholder; the proxy in the cell swaps it on the way out, only to the destination you named.
 The policy must allow that destination: sign a new policy bundle with your policy key and
-redeploy (see [the verifier guide](verifier-deploy.md), "Updating", and the bundle's format
-in `crates/common/src/bundle.rs`).
+restart your verifier (see [the verifier guide](verifier-deploy.md), "Publishing a policy").
 
 ```python
 env.put_credential("main", "openai", "sk-...", adapter="bearer", destination="api.openai.com")

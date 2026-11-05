@@ -3,11 +3,11 @@
 //!
 //! ```json
 //! { "env": "staging",
-//!   "subenvs": { "a": { "wrapped_dek": "<KMS ciphertext, base64>",
+//!   "subenvs": { "a": { "wrapped_dek": "<the key helper's ciphertext, base64>",
 //!                       "policy_bundle": "{…}", "policy_sig": "<detached JWS>" } },
-//!   "ca": { "kms_key": "projects/…/cryptoKeyVersions/1", "cert_pem": "-----BEGIN…",
+//!   "ca": { "key": "<a name the key helper understands>", "cert_pem": "-----BEGIN…",
 //!           "previous_cert_pem": [] },
-//!   "dek_kms_key": "projects/…/cryptoKeys/dek",
+//!   "dek_key": "<a name the key helper understands>",
 //!   "release_keys": ["-----BEGIN PUBLIC KEY-----…"],
 //!   "policy_key_pem": "-----BEGIN PUBLIC KEY-----…",  (two blocks during a rotation)
 //!   "sdk_token_sha256": "<hex>",
@@ -23,16 +23,17 @@
 use std::collections::BTreeMap;
 
 use common::ids::{EnvId, ReleaseId, SubenvId};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
     pub env: EnvId,
     pub subenvs: BTreeMap<SubenvId, Subenv>,
     pub ca: Ca,
-    /// The symmetric KMS key that wraps every sub-environment DEK at rest.
-    pub dek_kms_key: String,
+    /// The key that wraps every sub-environment DEK at rest. Named as the key helper
+    /// understands it; the verifier passes the name through and never parses it.
+    pub dek_key: String,
     /// PEM public keys whose signatures make a release policy valid.
     pub release_keys: Vec<String>,
     /// The customer's policy public keys (PEM, one block per key), handed to cells at
@@ -88,22 +89,22 @@ fn public_rekor() -> Vec<String> {
     vec![crate::REKOR_PUBLIC_KEY.to_owned()]
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Subenv {
-    /// The DEK encrypted under `dek_kms_key`, base64. Decrypted for every unlock, so
-    /// revoking the KMS key stops unlocks at once.
+    /// The DEK encrypted under `dek_key`, base64. Decrypted for every unlock, so revoking
+    /// that key stops unlocks at once.
     pub wrapped_dek: String,
     /// The sub-environment's policy bundle (JSON) and its detached JWS.
     pub policy_bundle: String,
     pub policy_sig: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Ca {
-    /// The KMS key version (EC_SIGN_P256_SHA256) that signs cell certificates.
-    pub kms_key: String,
+    /// The P-256 key that signs cell certificates, named as the key helper understands it.
+    pub key: String,
     pub cert_pem: String,
     /// CA certificates this one replaced: cells' certificates under them stay good for
     /// receipts until their leases end (docs/key-rotation.md).

@@ -36,16 +36,26 @@ as long as tax law asks. Our Cloud Logging holds the control plane's own operati
 
 ## What you do
 
-Export your receipt log if you need it, then in your own project:
+Export your receipt log if you need it, then stop your verifier and destroy your three keys in your key manager, which is
+what makes your data unreadable. On Google Cloud, with the recipe's names:
 
 ```bash
-for k in env-ca policy dek; do
+for k in MY_ENV-env-ca MY_ENV-policy MY_ENV-dek; do
   for v in $(gcloud kms keys versions list --key=$k --keyring=clovelly-verifier --location=$REGION \
       --filter='state=ENABLED OR state=DISABLED' --format='value(name.basename())'); do
     gcloud kms keys versions destroy "$v" --key=$k --keyring=clovelly-verifier --location=$REGION
   done
 done
 gcloud run services delete verifier --region=$REGION
+```
+
+On AWS, with the recipe's names (KMS destroys a key after a waiting period, 30 days here):
+
+```bash
+for k in env-ca policy dek; do
+  aws kms schedule-key-deletion --pending-window-in-days 30 --key-id alias/clovelly-MY_ENV-$k
+done
+aws cloudformation delete-stack --stack-name clovelly-verifier-MY_ENV
 ```
 
 Cloud KMS keeps a key's name forever and destroys its material after the scheduled

@@ -14,6 +14,9 @@
 //! prod.rtmr1=<96 hex>
 //! prod.rtmr2=<96 hex>
 //! test.…                             the same for the test image
+//! image.verifier.digest=sha256:<64 hex>  the OCI manifest digest, which the release logs
+//! image.verifier.blobs_sha256=<64 hex>   SHA-256 of every blob's SHA-256, as the builder holds them
+//! image.clovelly-keys.…               the same for the key helpers' image
 //! version.kernel=6.18.10             and runsc, cell-agent, egress-proxy, chrony
 //! ```
 
@@ -85,12 +88,14 @@ pub struct BuildRecord {
     pub commit: Commit,
     pub prod: Image,
     pub test: Image,
+    pub images: common::release::Images,
     pub versions: Versions,
     /// Every line, for the comparison.
     fields: BTreeMap<String, String>,
 }
 
 const IMAGE_KEYS: [&str; 6] = ["release", "recipe", "disk_sha256", "tarball_sha256", "rtmr1", "rtmr2"];
+const CONTAINER_KEYS: [&str; 4] = ["verifier.digest", "verifier.blobs_sha256", "clovelly-keys.digest", "clovelly-keys.blobs_sha256"];
 const VERSION_KEYS: [&str; 5] = ["kernel", "runsc", "cell-agent", "egress-proxy", "chrony"];
 
 impl BuildRecord {
@@ -106,6 +111,7 @@ impl BuildRecord {
             matches!(k, "builder" | "commit")
                 || k.split_once('.').is_some_and(|(scope, f)| match scope {
                     "prod" | "test" => IMAGE_KEYS.contains(&f),
+                    "image" => CONTAINER_KEYS.contains(&f),
                     "version" => VERSION_KEYS.contains(&f),
                     _ => false,
                 })
@@ -143,6 +149,10 @@ impl BuildRecord {
             commit: typed(&fields, "commit")?,
             prod: image("prod")?,
             test: image("test")?,
+            images: common::release::Images {
+                verifier: typed(&fields, "image.verifier.digest")?,
+                clovelly_keys: typed(&fields, "image.clovelly-keys.digest")?,
+            },
             versions: Versions {
                 kernel: version("kernel")?,
                 runsc: version("runsc")?,
@@ -224,6 +234,9 @@ mod tests {
                 h('4', 96)
             );
         }
+        for i in ["verifier", "clovelly-keys"] {
+            s += &format!("image.{i}.digest=sha256:{}\nimage.{i}.blobs_sha256={}\n", h('5', 64), h('6', 64));
+        }
         s + "version.kernel=6.18.10\nversion.runsc=20261019.0\nversion.cell-agent=0.2.0\n\
              version.egress-proxy=0.2.0\nversion.chrony=4.6.1\n"
     }
@@ -232,7 +245,7 @@ mod tests {
     fn identical_builds_from_two_builders_pass_the_gate() {
         let (a, b) = (BuildRecord::parse(&record("github-hosted")).unwrap(), BuildRecord::parse(&record("gce/example-builder")).unwrap());
         let lines = compare(&a, &b);
-        assert_eq!(lines.len(), 19);
+        assert_eq!(lines.len(), 23);
         assert!(lines.iter().all(Compared::ok), "{lines:?}");
     }
 
@@ -249,6 +262,14 @@ mod tests {
 
         let b = BuildRecord::parse(&record("gce/example-builder").replacen(&format!("test.rtmr2={}", "4".repeat(96)), &format!("test.rtmr2=5{}", "4".repeat(95)), 1)).unwrap();
         assert!(compare(&a, &b).iter().any(|c| c.key == "test.rtmr2" && !c.ok()));
+
+        // Phase 8 criterion 5: the existing injection, extended to either container image.
+        for field in ["image.verifier.blobs_sha256", "image.clovelly-keys.blobs_sha256"] {
+            let flipped = record("gce/example-builder").replacen(&format!("{field}={}", "6".repeat(64)), &format!("{field}=7{}", "6".repeat(63)), 1);
+            let b = BuildRecord::parse(&flipped).unwrap();
+            let bad: Vec<_> = compare(&a, &b).into_iter().filter(|c| !c.ok()).collect();
+            assert_eq!(bad.iter().map(|c| c.key.as_str()).collect::<Vec<_>>(), [field]);
+        }
 
         let same = compare(&a, &a);
         assert_eq!(same.iter().filter(|c| !c.ok()).map(|c| c.key.as_str()).collect::<Vec<_>>(), ["builder"]);
