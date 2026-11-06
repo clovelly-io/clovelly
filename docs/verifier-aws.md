@@ -5,8 +5,9 @@ Fargate task behind a load balancer on your certificate. You need an AWS account
 who may create the stack and KMS keys, a container runtime, and an ACM certificate for the name your verifier will
 have. About 20 minutes.
 
-**This recipe has not yet run against AWS: we have tested the backend against a fake of KMS's wire protocol, and
-the template with `cfn-lint`.** If something here does not work, it is our bug: tell us what it said.
+**We have run this recipe once on real AWS, from the published 0.4.0 images in us-east-2:** a TD unlocked against it,
+and a sandbox ended with a receipt the public tool verified. A lease renewal on AWS has not been tried, and no customer
+has run it yet. If something here does not work, it is our bug: tell us what it said.
 
 There is no access key anywhere in this. The helper runs as the task's role; your own login only sets it up.
 
@@ -68,9 +69,17 @@ aws cloudformation describe-stacks --stack-name clovelly-verifier-MY_ENV --query
 
 ## Proving the role's limits
 
+Get each key's ARN with your login. KMS takes no alias for these acts, so with an alias this check fails and proves
+nothing:
+
+```bash
+aws kms describe-key --key-id alias/clovelly-MY_ENV-env-ca --query KeyMetadata.Arn --output text
+aws kms describe-key --key-id alias/clovelly-MY_ENV-dek --query KeyMetadata.Arn --output text
+```
+
 Run this in a task with the same role. It tries to create, delete, disable and re-key, and passes only if KMS
 refuses all four:
 
 ```text
-clovelly-keys check-role aws --sign-key alias/clovelly-MY_ENV-env-ca --dek-key alias/clovelly-MY_ENV-dek
+clovelly-keys check-role aws --sign-key ENV_CA_KEY_ARN --dek-key DEK_KEY_ARN
 ```
