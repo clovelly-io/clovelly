@@ -5,9 +5,9 @@ Fargate task behind a load balancer on your certificate. You need an AWS account
 who may create the stack and KMS keys, a container runtime, and an ACM certificate for the name your verifier will
 have. About 20 minutes.
 
-**We have run this recipe once on real AWS, from the published 0.4.0 images in us-east-2:** a TD unlocked against it,
-and a sandbox ended with a receipt the public tool verified. A lease renewal on AWS has not been tried, and no customer
-has run it yet. If something here does not work, it is our bug: tell us what it said.
+**We have run this recipe on real AWS, from the published 0.4.0 images in us-east-2:** a TD unlocked against it, its
+lease renewed, and a sandbox ended with a receipt the public tool verified. No customer has run it yet. If something
+here does not work, it is our bug: tell us what it said.
 
 There is no access key anywhere in this. The helper runs as the task's role; your own login only sets it up.
 

@@ -4,7 +4,7 @@
 //! come from the SDK's default chain, which is the task's or instance's role when the helper
 //! runs and the operator's login when `init` does. There is no access key anywhere in this.
 //!
-//! **This backend has run on real AWS once**; `docs/verifier-aws.md` says how far.
+//! **This backend has run on real AWS**; `docs/verifier-aws.md` says how far.
 
 use aws_sdk_kms::Client;
 use aws_sdk_kms::error::{ProvideErrorMetadata, SdkError};
