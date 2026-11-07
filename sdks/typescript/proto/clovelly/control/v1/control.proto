@@ -13,7 +13,8 @@
 // "Telemetry") and who is reporting.
 //
 // Errors end with a gRPC status whose trailing metadata "clovelly-error" holds one
-// ErrorReason name.
+// ErrorReason name. NO_CAPACITY adds "clovelly-region" and "clovelly-retry-after"
+// (seconds); UNKNOWN_REGION adds "clovelly-regions" (comma-separated).
 syntax = "proto3";
 
 package clovelly.control.v1;
@@ -24,8 +25,9 @@ service Control {
   rpc PutEnvironment(PutEnvironmentRequest) returns (PutEnvironmentResponse);
   // Creates or updates a sub-environment and its sandbox limits.
   rpc PutSubenvironment(Subenvironment) returns (Subenvironment);
-  // Creates or updates a sub-environment's pool. Machine type, release and test
-  // metadata are operator fields; an environment token leaves them as they are.
+  // Creates or updates a sub-environment's pool, which runs in one region. Machine type,
+  // release and test metadata are operator fields; an environment token leaves them as
+  // they are. A pool's region never changes: another region is another sub-environment.
   rpc PutPool(Pool) returns (Pool);
   rpc GetPool(GetPoolRequest) returns (PoolStatus);
   // Picks a cell for a new sandbox, booting one when none can hold it (cold).
@@ -122,6 +124,13 @@ enum ErrorReason {
   NOT_READY = 18;
   // PERMISSION_DENIED: the sign-up is closed.
   SIGN_UP_CLOSED = 19;
+  // UNAVAILABLE: every zone of the pool's region refused a new cell (out of machines) and
+  // no cell of the pool could take the sandbox. Nothing was billed, nothing is queued and
+  // no other region is tried: create the sandbox in a sub-environment of another region,
+  // or retry here after "clovelly-retry-after" seconds. "clovelly-region" names the region.
+  NO_CAPACITY = 20;
+  // INVALID_ARGUMENT: a region not in the published list; "clovelly-regions" is the list.
+  UNKNOWN_REGION = 21;
 }
 
 message PutEnvironmentRequest {
@@ -166,6 +175,8 @@ message Pool {
   string subenv_id = 2;
   // Operator: e.g. "c3-standard-8".
   string machine_type = 3;
+  // Read only: the zones the pool uses, every approved zone of its region. The control
+  // plane chooses them; a request that sets them is refused.
   repeated string zones = 4;
   uint32 min_warm_per_zone = 5;
   uint32 idle_window_secs = 6;
@@ -175,6 +186,9 @@ message Pool {
   string release_id = 8;
   // Operator, test deployments only: extra instance metadata for test-variant cells.
   map<string, string> test_metadata = 9;
+  // Where the pool's cells run, from the published list (docs/regions.md), such as
+  // "europe-west4". Required when the pool is made; it cannot change afterwards.
+  string region = 10;
 }
 
 message GetPoolRequest {
@@ -469,9 +483,10 @@ message BilledCell {
 message BilledSubenv {
   string subenv_id = 1;
   uint64 billed_ms = 2;
-  // billed_ms at the control plane's price per cell-hour, rounded half up once per
-  // sub-environment.
+  // billed_ms at the control plane's price per cell-hour in the sub-environment's region,
+  // rounded half up once per sub-environment.
   uint64 cents = 3;
+  string region = 4;
 }
 
 message OffboardRequest {
@@ -703,6 +718,8 @@ message DailyUsageRow {
   string day = 1;
   string subenv_id = 2;
   double cell_minutes = 3;
+  // Where the sub-environment's cells ran.
+  string region = 4;
 }
 message DailySandboxes {
   string day = 1;

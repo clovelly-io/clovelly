@@ -1,5 +1,5 @@
 // @clovelly/sdk: a thin client for the confidential sandbox service.
-export { Environment, type EnvironmentOptions, type SandboxOptions } from "./environment.js";
+export { Environment, type EnvironmentOptions, type Pool, type SandboxOptions } from "./environment.js";
 export {
   Sandbox,
   isSandboxId,
@@ -42,6 +42,8 @@ export {
   NoCellReady,
   QuotaExceeded,
   CreditExhausted,
+  NoCapacity,
+  UnknownRegion,
   NoSuchCell,
   NoSuchEnvironment,
   NoSuchPool,

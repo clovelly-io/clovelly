@@ -7,6 +7,7 @@ does not chain to that CA and name the sub-environment it asked for.
     import clovelly
 
     env = clovelly.Environment(verifier_url, env_id, ca_bundle)
+    env.put_pool("bank-a", region="europe-west4")   # where its cells run; set once
     tpl = env.upload_template("bank-a", "analyst-v3", "analyst-v3.tar.gz")
     sb = env.sandbox("bank-a", template=tpl, volume="work", cpu=1, memory=2, timeout=900)
     r = sb.exec("python3 -c 'print(6*7)'")
@@ -22,6 +23,7 @@ See README.md for the connection rules, the error types and the environment vari
 from ._cell import Cell, ExecResult
 from ._receipts import EgressLog, LoggedReceipt, Receipt, egress_log_sha256
 from ._template import Template
+from ._control import Pool
 from .environment import Environment, Files, Sandbox, placeholder
 from .errors import (
     AbovePolicyMaximum,
@@ -44,6 +46,8 @@ from .errors import (
     NoCellReady,
     QuotaExceeded,
     CreditExhausted,
+    NoCapacity,
+    UnknownRegion,
     NoSuchCell,
     NoSuchEnvironment,
     NoSuchPool,
@@ -69,6 +73,7 @@ from .errors import (
 __version__ = "0.4.0"
 
 __all__ = [
+    "Pool",
     "Environment",
     "Sandbox",
     "Files",
@@ -113,6 +118,8 @@ __all__ = [
     "NoCellReady",
     "QuotaExceeded",
     "CreditExhausted",
+    "NoCapacity",
+    "UnknownRegion",
     "CellCreateFailed",
     "CellVerificationError",
     "CellUnavailable",

@@ -155,8 +155,9 @@ class ControlServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def PutPool(self, request, context):
-        """Creates or updates a sub-environment's pool. Machine type, release and test
-        metadata are operator fields; an environment token leaves them as they are.
+        """Creates or updates a sub-environment's pool, which runs in one region. Machine type,
+        release and test metadata are operator fields; an environment token leaves them as
+        they are. A pool's region never changes: another region is another sub-environment.
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')

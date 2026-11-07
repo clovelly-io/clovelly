@@ -12,6 +12,9 @@ Everything we store for you is ciphertext under keys we do not hold.
 | Egress logs | **Never stored by us.** They come with a final receipt to your verifier | Your choice |
 | Sandbox memory, files, traffic | Inside the cell only, on tmpfs | The sandbox's end, and at the latest the cell's 48-hour cap |
 
+Our Cloud Storage and our database are in the United States, whatever region your sub-environment's cells run in:
+a region decides where sandboxes run, not where this is kept ([regions.md](regions.md)).
+
 Without your DEK, none of the stored ciphertext opens, for us or for anyone. Disable your
 `dek` key and it is unreadable at once, wherever a copy might be.
 

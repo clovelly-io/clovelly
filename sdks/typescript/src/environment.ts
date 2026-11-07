@@ -54,6 +54,17 @@ export interface EnvironmentOptions {
   apiCa?: string | Buffer;
 }
 
+/** A sub-environment's pool as the control plane holds it. */
+export interface Pool {
+  subenv: string;
+  /** Where its cells run. */
+  region: string;
+  /** The zones of the region it uses: the control plane's choice, every approved zone. */
+  zones: readonly string[];
+  minWarmPerZone: number;
+  idleWindowSecs: number;
+}
+
 export interface SandboxOptions {
   /** Seconds, 1 to 86400. Default: the sub-environment's. */
   timeout?: number;
@@ -231,6 +242,27 @@ export class Environment {
       timings: { placeMs, connectMs, createMs: 0, runscMs: 0 },
       control,
     });
+  }
+
+  /**
+   * Sets `subenv`'s pool: the `region` its cells run in, from the published list
+   * (docs/regions.md), warm cells per zone, and the idle window (0 is the default, 15
+   * minutes). The control plane uses every approved zone of the region and moves cells between
+   * them when one runs out of machines; when all of them have, `sandbox()` rejects with
+   * `NoCapacity` rather than queue or go elsewhere. A region is fixed once set: another region
+   * is another sub-environment. Rejects with `UnknownRegion` (its `regions` is the list) for a
+   * region not offered.
+   */
+  async putPool(
+    subenv: string,
+    { region, minWarmPerZone = 0, idleWindowSecs = 0 }: { region: string; minWarmPerZone?: number; idleWindowSecs?: number },
+  ): Promise<Pool> {
+    const subenvId = label(subenv, "sub-environment id");
+    if (![minWarmPerZone, idleWindowSecs].every((n) => Number.isInteger(n) && n >= 0)) {
+      throw invalidRequest("minWarmPerZone and idleWindowSecs must be whole numbers, not negative");
+    }
+    const pool = await this.#controlPlane().putPool({ envId: this.envId, subenvId, region, minWarmPerZone, idleWindowSecs });
+    return { subenv: pool.subenvId, region: pool.region, zones: pool.zones, minWarmPerZone: pool.minWarmPerZone, idleWindowSecs: pool.idleWindowSecs };
   }
 
   /**

@@ -164,6 +164,20 @@ export interface Placement {
   timeoutSecs: number;
 }
 
+/** A sub-environment's pool; `region` and the customer's settings, `zones` read only. */
+export interface Pool {
+  envId: string;
+  subenvId: string;
+  machineType: string;
+  zones: readonly string[];
+  minWarmPerZone: number;
+  idleWindowSecs: number;
+  capSecs: number;
+  releaseId: string;
+  testMetadata: Record<string, string>;
+  region: string;
+}
+
 /** `LocateSandboxRequest` and `ReleaseSandboxRequest`. */
 export interface SandboxIdRequest {
   sandboxId: string;
@@ -216,6 +230,7 @@ export interface GetTemplateRequest {
 
 export type ControlService = {
   PlaceSandbox: Rpc<PlaceSandboxRequest, Placement>;
+  PutPool: Rpc<Partial<Pool>, Pool>;
   LocateSandbox: Rpc<SandboxIdRequest, Placement>;
   ReleaseSandbox: Rpc<SandboxIdRequest, Empty>;
   PutCredential: Rpc<PutCredentialRequest, Empty>;
@@ -351,6 +366,7 @@ export const cellService = service<CellService>("clovelly.cell.v1.Cell", {
 
 export const controlService = service<ControlService>("clovelly.control.v1.Control", {
   PlaceSandbox: "unary",
+  PutPool: "unary",
   LocateSandbox: "unary",
   ReleaseSandbox: "unary",
   PutCredential: "unary",

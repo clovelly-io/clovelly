@@ -107,6 +107,29 @@ class Errors(Fixture):
         self.assertEqual(caught.exception.reason, "QUOTA_EXCEEDED")
         self.assertEqual(len(self.control.places), 1, "a quota is not a capacity problem: no retry")
 
+    def test_no_capacity_is_typed_names_the_region_and_is_not_placed_again(self) -> None:
+        self.control.refuse_place = (
+            grpc.StatusCode.UNAVAILABLE,
+            "NO_CAPACITY",
+            ("clovelly-region", "europe-west4"),
+            ("clovelly-retry-after", "95"),
+        )
+        with self.assertRaises(clovelly.NoCapacity) as caught:
+            self.env.sandbox("a")
+        self.assertEqual((caught.exception.region, caught.exception.retry_after), ("europe-west4", 95))
+        self.assertEqual(caught.exception.reason, "NO_CAPACITY")
+        self.assertEqual(len(self.control.places), 1, "no queue and no other region: one placement")
+        self.assertEqual(self.cell.calls, [])
+
+    def test_a_pool_takes_a_region_and_an_unknown_one_is_refused_with_the_list(self) -> None:
+        pool = self.env.put_pool("a", region="europe-west4", min_warm_per_zone=1)
+        self.assertEqual((pool.region, pool.zones), ("europe-west4", ("europe-west4-a", "europe-west4-b", "europe-west4-c")))
+        self.assertEqual(self.control.pools["a"].min_warm_per_zone, 1)
+        with self.assertRaises(clovelly.UnknownRegion) as caught:
+            self.env.put_pool("a", region="mars-north1")
+        self.assertEqual(caught.exception.regions, ("us-central1", "europe-west4", "asia-southeast1"))
+        self.assertEqual(caught.exception.code, "INVALID_ARGUMENT")
+
     def test_credit_refusal_is_typed_and_not_placed_again(self) -> None:
         self.control.refuse_place = (grpc.StatusCode.FAILED_PRECONDITION, "CREDIT_EXHAUSTED")
         with self.assertRaises(clovelly.CreditExhausted) as caught:

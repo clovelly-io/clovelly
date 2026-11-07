@@ -31,4 +31,4 @@ A failed environment fee pauses placements 72 hours after the failure, until it 
 
 ## Your usage
 
-The Usage tab shows cell-minutes by sub-environment and day, and exports the month's bill as CSV. `ExportBilling` returns the same bill through the API, and credit is drawn from exactly that bill, to the cent.
+The Usage tab shows cell-minutes by sub-environment, its region and day, and exports the month's bill as CSV. `ExportBilling` returns the same bill through the API, and credit is drawn from exactly that bill, to the cent.

@@ -123,9 +123,12 @@ def pki() -> Pki:
     return Pki()
 
 
-def abort(context: grpc.ServicerContext, code: grpc.StatusCode, reason: str) -> None:
-    """Ends a call the way the real services do: the reason in the clovelly-error trailer."""
-    context.set_trailing_metadata((("clovelly-error", reason),))
+def abort(
+    context: grpc.ServicerContext, code: grpc.StatusCode, reason: str, *extra: tuple[str, str]
+) -> None:
+    """Ends a call the way the real services do: the reason in the clovelly-error trailer,
+    and any ``extra`` trailers (NO_CAPACITY's region and retry-after, say)."""
+    context.set_trailing_metadata((("clovelly-error", reason), *extra))
     context.abort(code, f"refused: {reason}")
 
 
@@ -297,7 +300,9 @@ class FakeControl(control_pb2_grpc.ControlServicer):
         self.released: list[str] = []
         self.tokens: set[str] = set()
         self.placed: dict[str, FakeCell] = {}
-        self.refuse_place: Optional[tuple[grpc.StatusCode, str]] = None
+        self.refuse_place: Optional[tuple] = None
+        self.regions = ("us-central1", "europe-west4", "asia-southeast1")
+        self.pools: dict[str, control_pb2.Pool] = {}
         self.uploads: list[Upload] = []
         self.templates: dict[tuple[str, str], control_pb2.TemplateInfo] = {}
         self._server, self.address = _serve(
@@ -339,6 +344,16 @@ class FakeControl(control_pb2_grpc.ControlServicer):
             cpu_halves=request.size.cpu_halves or 2, memory_gib=request.size.memory_gib or 2
         )
         return self._placement(sandbox_id, cell, size, request.timeout_secs or 900)
+
+    def PutPool(self, request, context):
+        self._auth(context)
+        if request.region not in self.regions:
+            abort(context, grpc.StatusCode.INVALID_ARGUMENT, "UNKNOWN_REGION", ("clovelly-regions", ",".join(self.regions)))
+        pool = control_pb2.Pool()
+        pool.CopyFrom(request)
+        pool.zones.extend(f"{request.region}-{z}" for z in "abc")
+        self.pools[request.subenv_id] = pool
+        return pool
 
     def LocateSandbox(self, request, context):
         self._auth(context)

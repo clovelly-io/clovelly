@@ -29,6 +29,8 @@ class ErrorReason(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     CREDIT_EXHAUSTED: _ClassVar[ErrorReason]
     NOT_READY: _ClassVar[ErrorReason]
     SIGN_UP_CLOSED: _ClassVar[ErrorReason]
+    NO_CAPACITY: _ClassVar[ErrorReason]
+    UNKNOWN_REGION: _ClassVar[ErrorReason]
 
 class DrainState(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
@@ -56,6 +58,8 @@ QUOTA_EXCEEDED: ErrorReason
 CREDIT_EXHAUSTED: ErrorReason
 NOT_READY: ErrorReason
 SIGN_UP_CLOSED: ErrorReason
+NO_CAPACITY: ErrorReason
+UNKNOWN_REGION: ErrorReason
 DRAIN_STATE_UNSPECIFIED: DrainState
 SERVING: DrainState
 DRAINING: DrainState
@@ -104,7 +108,7 @@ class Subenvironment(_message.Message):
     def __init__(self, env_id: _Optional[str] = ..., subenv_id: _Optional[str] = ..., default_size: _Optional[_Union[Resources, _Mapping]] = ..., max_size: _Optional[_Union[Resources, _Mapping]] = ..., max_timeout_secs: _Optional[int] = ..., verifier_url: _Optional[str] = ...) -> None: ...
 
 class Pool(_message.Message):
-    __slots__ = ("env_id", "subenv_id", "machine_type", "zones", "min_warm_per_zone", "idle_window_secs", "cap_secs", "release_id", "test_metadata")
+    __slots__ = ("env_id", "subenv_id", "machine_type", "zones", "min_warm_per_zone", "idle_window_secs", "cap_secs", "release_id", "test_metadata", "region")
     class TestMetadataEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -121,6 +125,7 @@ class Pool(_message.Message):
     CAP_SECS_FIELD_NUMBER: _ClassVar[int]
     RELEASE_ID_FIELD_NUMBER: _ClassVar[int]
     TEST_METADATA_FIELD_NUMBER: _ClassVar[int]
+    REGION_FIELD_NUMBER: _ClassVar[int]
     env_id: str
     subenv_id: str
     machine_type: str
@@ -130,7 +135,8 @@ class Pool(_message.Message):
     cap_secs: int
     release_id: str
     test_metadata: _containers.ScalarMap[str, str]
-    def __init__(self, env_id: _Optional[str] = ..., subenv_id: _Optional[str] = ..., machine_type: _Optional[str] = ..., zones: _Optional[_Iterable[str]] = ..., min_warm_per_zone: _Optional[int] = ..., idle_window_secs: _Optional[int] = ..., cap_secs: _Optional[int] = ..., release_id: _Optional[str] = ..., test_metadata: _Optional[_Mapping[str, str]] = ...) -> None: ...
+    region: str
+    def __init__(self, env_id: _Optional[str] = ..., subenv_id: _Optional[str] = ..., machine_type: _Optional[str] = ..., zones: _Optional[_Iterable[str]] = ..., min_warm_per_zone: _Optional[int] = ..., idle_window_secs: _Optional[int] = ..., cap_secs: _Optional[int] = ..., release_id: _Optional[str] = ..., test_metadata: _Optional[_Mapping[str, str]] = ..., region: _Optional[str] = ...) -> None: ...
 
 class GetPoolRequest(_message.Message):
     __slots__ = ("env_id", "subenv_id")
@@ -553,14 +559,16 @@ class BilledCell(_message.Message):
     def __init__(self, subenv_id: _Optional[str] = ..., cell_id: _Optional[str] = ..., machine_type: _Optional[str] = ..., zone: _Optional[str] = ..., create_called_unix_ms: _Optional[int] = ..., deleted_unix_ms: _Optional[int] = ..., billed_ms: _Optional[int] = ...) -> None: ...
 
 class BilledSubenv(_message.Message):
-    __slots__ = ("subenv_id", "billed_ms", "cents")
+    __slots__ = ("subenv_id", "billed_ms", "cents", "region")
     SUBENV_ID_FIELD_NUMBER: _ClassVar[int]
     BILLED_MS_FIELD_NUMBER: _ClassVar[int]
     CENTS_FIELD_NUMBER: _ClassVar[int]
+    REGION_FIELD_NUMBER: _ClassVar[int]
     subenv_id: str
     billed_ms: int
     cents: int
-    def __init__(self, subenv_id: _Optional[str] = ..., billed_ms: _Optional[int] = ..., cents: _Optional[int] = ...) -> None: ...
+    region: str
+    def __init__(self, subenv_id: _Optional[str] = ..., billed_ms: _Optional[int] = ..., cents: _Optional[int] = ..., region: _Optional[str] = ...) -> None: ...
 
 class OffboardRequest(_message.Message):
     __slots__ = ("env_id",)
@@ -834,14 +842,16 @@ class GetDailyUsageRequest(_message.Message):
     def __init__(self, env_id: _Optional[str] = ..., month: _Optional[str] = ...) -> None: ...
 
 class DailyUsageRow(_message.Message):
-    __slots__ = ("day", "subenv_id", "cell_minutes")
+    __slots__ = ("day", "subenv_id", "cell_minutes", "region")
     DAY_FIELD_NUMBER: _ClassVar[int]
     SUBENV_ID_FIELD_NUMBER: _ClassVar[int]
     CELL_MINUTES_FIELD_NUMBER: _ClassVar[int]
+    REGION_FIELD_NUMBER: _ClassVar[int]
     day: str
     subenv_id: str
     cell_minutes: float
-    def __init__(self, day: _Optional[str] = ..., subenv_id: _Optional[str] = ..., cell_minutes: _Optional[float] = ...) -> None: ...
+    region: str
+    def __init__(self, day: _Optional[str] = ..., subenv_id: _Optional[str] = ..., cell_minutes: _Optional[float] = ..., region: _Optional[str] = ...) -> None: ...
 
 class DailySandboxes(_message.Message):
     __slots__ = ("day", "peak_concurrent")

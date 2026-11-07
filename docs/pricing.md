@@ -3,14 +3,20 @@
 
 > **These are staging figures for testing the billing mechanism. They are not Clovelly's prices; the prices are set before any organization outside staging exists.**
 
-Clovelly bills cell-minutes: every minute from the moment we ask for a cell to the moment it is deleted, whatever ran on it. Nothing is billed per sandbox or per vCPU-second, because a cell is a dedicated confidential VM that runs only your sandboxes. What you pay is set by the settings you hold: warm cells per zone, the idle window, zones, sandbox sizes and timeouts.
+Clovelly bills cell-minutes: every minute from the moment we ask for a cell to the moment it is deleted, whatever ran on it. Nothing is billed per sandbox or per vCPU-second, because a cell is a dedicated confidential VM that runs only your sandboxes. What you pay is set by the settings you hold: the region, warm cells per zone, the idle window, sandbox sizes and timeouts.
 
 ## Cells
 
-| Machine type | Per cell-hour |
-|---|---|
-| `c3-standard-22` | $1.65 |
-| `c3-standard-8` | $0.60 |
+A cell-hour costs what its region costs: the region of the sub-environment it runs for ([regions.md](regions.md)). A create refused because the region is out of machines (`NO_CAPACITY`) bills nothing.
+
+| Region | Machine type | Per cell-hour |
+|---|---|---|
+| `asia-southeast1` | `c3-standard-22` | $2.04 |
+| `asia-southeast1` | `c3-standard-8` | $0.74 |
+| `europe-west4` | `c3-standard-22` | $1.82 |
+| `europe-west4` | `c3-standard-8` | $0.66 |
+| `us-central1` | `c3-standard-22` | $1.65 |
+| `us-central1` | `c3-standard-8` | $0.60 |
 
 ## Environment fee
 

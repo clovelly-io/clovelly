@@ -3,6 +3,7 @@
 ::
 
     env = clovelly.Environment(verifier_url, env_id, ca_bundle)
+    env.put_pool("bank-a", region="europe-west4")   # once: where bank-a's cells run
     env.put_credential("bank-a", "openai", api_key, adapter="bearer", destination="api.openai.com")
     tpl = env.upload_template("bank-a", "analyst-v3", "analyst-v3.tar.gz")
     with env.sandbox("bank-a", template=tpl, volume="work", cpu=1, memory=2, timeout=900) as sb:
@@ -29,7 +30,7 @@ from clovelly.control.v1 import control_pb2
 
 from . import _parse, _template
 from ._cell import Cell, ExecResult
-from ._control import Control, Placement
+from ._control import Control, Placement, Pool
 from ._receipts import EgressLog, LoggedReceipt, Receipt
 from ._template import Template
 from ._verifier import Verifier
@@ -272,6 +273,22 @@ class Environment:
         cell.get_receipt(sid, key_bytes)
         timings["receipt_ms"] = _ms(started)
         return Sandbox._placed(self, cell, placement, key_bytes, timings)
+
+    def put_pool(
+        self, subenv: str, region: str, *, min_warm_per_zone: int = 0, idle_window_secs: int = 0
+    ) -> Pool:
+        """Sets ``subenv``'s pool: the ``region`` its cells run in, from the published list
+        (docs/regions.md), warm cells per zone, and the idle window (0 is the default,
+        15 minutes). The control plane uses every approved zone of the region and moves
+        cells between them when one runs out of machines; when all of them have,
+        :meth:`sandbox` raises :class:`NoCapacity` rather than queue or go elsewhere.
+        A region is fixed once set: another region is another sub-environment. Raises
+        :class:`UnknownRegion` (with ``.regions``, the list) for a region not offered.
+        """
+        sub = _parse.label(subenv, "sub-environment id")
+        if min_warm_per_zone < 0 or idle_window_secs < 0:
+            raise ValueError("min_warm_per_zone and idle_window_secs must not be negative")
+        return self._control().put_pool(self.env_id, sub, region, min_warm_per_zone, idle_window_secs)
 
     def put_credential(
         self,

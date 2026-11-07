@@ -104,6 +104,34 @@ export class CreditExhausted extends ClovellyError {}
 export class CellCreateFailed extends ClovellyError {}
 
 /**
+ * NO_CAPACITY: every zone of the pool's region is out of machines and no cell of the pool can
+ * take the sandbox. Nothing was billed and nothing is queued; no other region is tried. Create
+ * the sandbox in a sub-environment of another region, or retry after `retryAfter` seconds.
+ */
+export class NoCapacity extends ClovellyError {
+  /** The region that is out, such as `"europe-west4"`. */
+  readonly region: string;
+  /** Seconds until the control plane tries the region's zones again. */
+  readonly retryAfter: number;
+
+  constructor(message: string, init: ClovellyErrorInit & { region?: string; retryAfter?: number }) {
+    super(message, init);
+    this.region = init.region ?? "";
+    this.retryAfter = init.retryAfter ?? 0;
+  }
+}
+
+/** UNKNOWN_REGION: the region is not in the published list; `regions` is the list. */
+export class UnknownRegion extends ClovellyError {
+  readonly regions: readonly string[];
+
+  constructor(message: string, init: ClovellyErrorInit & { regions?: readonly string[] }) {
+    super(message, init);
+    this.regions = init.regions ?? [];
+  }
+}
+
+/**
  * A server answered with something the protocol does not allow: a malformed placement
  * (bad cell address or sandbox id), a placement for another environment or sub-environment
  * than the one asked for, an Exec without an exit message, a receipt that is not JSON.
@@ -206,9 +234,12 @@ const BY_REASON = {
 } as const satisfies Record<string, typeof ClovellyError>;
 
 /** The `clovelly-error` names of cell.proto and control.proto. */
-export type ErrorReason = keyof typeof BY_REASON;
+export type ErrorReason = keyof typeof BY_REASON | WithTrailers;
 
-function isErrorReason(name: string): name is ErrorReason {
+/** Reasons whose errors carry more trailers than the reason; built by `clovellyError` itself. */
+type WithTrailers = "NO_CAPACITY" | "UNKNOWN_REGION";
+
+function isErrorReason(name: string): name is keyof typeof BY_REASON {
   return Object.hasOwn(BY_REASON, name);
 }
 
@@ -227,10 +258,17 @@ export function clovellyError(
   unavailable: typeof CellUnavailable | typeof ControlPlaneUnavailable | typeof VerifierUnavailable,
 ): unknown {
   if (!isServiceError(error)) return error;
-  const [value] = error.metadata.get("clovelly-error");
-  const reason = value === undefined ? undefined : value.toString();
+  const trailer = (name: string): string | undefined => error.metadata.get(name)[0]?.toString();
+  const reason = trailer("clovelly-error");
   const message = `${reason ?? grpc.status[error.code]}: ${error.details}`;
   const init = { code: error.code, reason, details: error.details, cause: error };
+  if (reason === "NO_CAPACITY") {
+    const retryAfter = Number.parseInt(trailer("clovelly-retry-after") ?? "", 10);
+    return new NoCapacity(message, { ...init, region: trailer("clovelly-region") ?? "", retryAfter: Number.isNaN(retryAfter) ? 0 : Math.max(0, retryAfter) });
+  }
+  if (reason === "UNKNOWN_REGION") {
+    return new UnknownRegion(message, { ...init, regions: (trailer("clovelly-regions") ?? "").split(",").filter((r) => r !== "") });
+  }
   if (reason !== undefined && isErrorReason(reason)) return new BY_REASON[reason](message, init);
   if (error.code === grpc.status.UNAVAILABLE || error.code === grpc.status.DEADLINE_EXCEEDED) {
     return new unavailable(message, init);

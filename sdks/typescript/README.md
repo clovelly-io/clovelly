@@ -127,6 +127,21 @@ directly. It has `verify()` and the raw RPCs: `createSandbox`, `exec`, `readFile
 `python3 -c 'print(6*7)'`, write and read back a file, then close. It prints one JSON object
 with each step's result and time, and exits non-zero on any failure.
 
+## Regions
+
+```ts
+const pool = await env.putPool("bank-a", { region: "europe-west4", minWarmPerZone: 0, idleWindowSecs: 0 });
+pool.region; pool.zones; // "europe-west4", ["europe-west4-a", ...]
+```
+
+A sub-environment's cells run in the region its pool names, one of the published list
+(`docs/regions.md`); another name rejects with `UnknownRegion`, whose `regions` is the list. The
+region is set once: another region is another sub-environment. The control plane uses every
+approved zone of it and hides a zone that is out of machines. When every zone of the region is
+out and no cell can take the sandbox, `env.sandbox()` rejects with `NoCapacity` within seconds,
+billing nothing, with `region` and `retryAfter`. The SDK never queues it or tries another region:
+that choice is yours, by creating the sandbox in a sub-environment elsewhere.
+
 ## Credentials
 
 ```ts
@@ -275,6 +290,8 @@ Each `ErrorReason` in `cell.proto` and `control.proto` has its own subclass:
 | `NO_CELL_READY` | `NoCellReady` |
 | `CELL_CREATE_FAILED` | `CellCreateFailed` |
 | `QUOTA_EXCEEDED` | `QuotaExceeded` |
+| `NO_CAPACITY` | `NoCapacity` (`region`, `retryAfter` seconds) |
+| `UNKNOWN_REGION` | `UnknownRegion` (`regions`, the published list) |
 | `POLICY_REFUSED` | `PolicyRefused` |
 | `CREDENTIAL_UNAVAILABLE` | `CredentialUnavailable` |
 | `STORAGE` | `StorageUnavailable` |

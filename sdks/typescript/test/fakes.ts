@@ -103,9 +103,10 @@ export function makePki(): Pki {
 }
 
 /** A refusal as a cell or the control plane sends it: a status with the `clovelly-error` trailer. */
-export function refusal(reason: string, code: grpc.status): Status {
+export function refusal(reason: string, code: grpc.status, extra: Record<string, string> = {}): Status {
   const metadata = new grpc.Metadata();
   metadata.set("clovelly-error", reason);
+  for (const [key, value] of Object.entries(extra)) metadata.set(key, value);
   return { code, details: `refused: ${reason}`, metadata };
 }
 
@@ -344,6 +345,9 @@ export class FakeControl {
   cells: { id: string; address: string }[] = [];
   /** When set, PlaceSandbox refuses with it. */
   refusePlace: Status | undefined;
+  /** The published regions PutPool accepts, and the pools it was given. */
+  readonly regions = ["us-central1", "europe-west4", "asia-southeast1"];
+  readonly pools = new Map<string, Partial<pb.Pool>>();
   /** When set, rewrites every placement PlaceSandbox and LocateSandbox answer with. */
   tamper: ((placement: pb.Placement) => pb.Placement) | undefined;
   address = "";
@@ -353,6 +357,7 @@ export class FakeControl {
     const control = new FakeControl();
     control.#server.addService(pb.controlService, {
       PlaceSandbox: control.#placeSandbox,
+      PutPool: control.#putPool,
       LocateSandbox: control.#locateSandbox,
       ReleaseSandbox: control.#releaseSandbox,
       PutTemplate: control.#putTemplate,
@@ -370,6 +375,28 @@ export class FakeControl {
     this.calls.push(method);
     this.authorizations.push(...metadata.get("authorization").map(String));
   }
+
+  #putPool: grpc.handleUnaryCall<Partial<pb.Pool>, pb.Pool> = (call, callback) => {
+    this.#record(call.metadata, "PutPool");
+    const request = call.request;
+    const region = request.region ?? "";
+    if (!this.regions.includes(region)) {
+      return callback(refusal("UNKNOWN_REGION", grpc.status.INVALID_ARGUMENT, { "clovelly-regions": this.regions.join(",") }));
+    }
+    this.pools.set(request.subenvId ?? "", request);
+    callback(null, {
+      envId: request.envId ?? "",
+      subenvId: request.subenvId ?? "",
+      machineType: "c3-standard-8",
+      zones: ["a", "b", "c"].map((z) => `${region}-${z}`),
+      minWarmPerZone: request.minWarmPerZone ?? 0,
+      idleWindowSecs: request.idleWindowSecs ?? 0,
+      capSecs: 0,
+      releaseId: "",
+      testMetadata: {},
+      region,
+    });
+  };
 
   #placeSandbox: grpc.handleUnaryCall<pb.PlaceSandboxRequest, pb.Placement> = (call, callback) => {
     this.#record(call.metadata, "PlaceSandbox");

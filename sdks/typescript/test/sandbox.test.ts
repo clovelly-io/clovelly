@@ -8,6 +8,8 @@ import * as grpc from "@grpc/grpc-js";
 import {
   AbovePolicyMaximum,
   QuotaExceeded,
+  NoCapacity,
+  UnknownRegion,
   CreditExhausted,
   CapacityError,
   CellVerificationError,
@@ -149,6 +151,31 @@ describe("sandboxes", () => {
     await assert.rejects(environment().sandbox("a"), (error: unknown) => {
       assert.ok(error instanceof QuotaExceeded, String(error));
       assert.equal(error.reason, "QUOTA_EXCEEDED");
+      return true;
+    });
+  });
+
+  it("raises NO_CAPACITY as NoCapacity with its region and retry-after, and does not place again", async () => {
+    control.refusePlace = refusal("NO_CAPACITY", grpc.status.UNAVAILABLE, { "clovelly-region": "europe-west4", "clovelly-retry-after": "95" });
+    const before = control.placeRequests.length;
+    await assert.rejects(environment().sandbox("a"), (error: unknown) => {
+      assert.ok(error instanceof NoCapacity, String(error));
+      assert.equal(error.region, "europe-west4");
+      assert.equal(error.retryAfter, 95);
+      return true;
+    });
+    assert.equal(control.placeRequests.length - before, 1, "no queue and no other region: one placement");
+  });
+
+  it("sets a pool's region, and refuses an unknown one with the published list", async () => {
+    const env = environment();
+    const pool = await env.putPool("a", { region: "europe-west4", minWarmPerZone: 1 });
+    assert.deepEqual([pool.region, pool.zones], ["europe-west4", ["europe-west4-a", "europe-west4-b", "europe-west4-c"]]);
+    assert.equal(control.pools.get("a")?.minWarmPerZone, 1);
+    await assert.rejects(env.putPool("a", { region: "mars-north1" }), (error: unknown) => {
+      assert.ok(error instanceof UnknownRegion, String(error));
+      assert.deepEqual(error.regions, ["us-central1", "europe-west4", "asia-southeast1"]);
+      assert.equal(error.code, grpc.status.INVALID_ARGUMENT);
       return true;
     });
   });

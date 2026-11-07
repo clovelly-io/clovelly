@@ -58,6 +58,8 @@ pub struct Pool {
     /// Operator: e.g. "c3-standard-8".
     #[prost(string, tag = "3")]
     pub machine_type: ::prost::alloc::string::String,
+    /// Read only: the zones the pool uses, every approved zone of its region. The control
+    /// plane chooses them; a request that sets them is refused.
     #[prost(string, repeated, tag = "4")]
     pub zones: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
     #[prost(uint32, tag = "5")]
@@ -76,6 +78,10 @@ pub struct Pool {
         ::prost::alloc::string::String,
         ::prost::alloc::string::String,
     >,
+    /// Where the pool's cells run, from the published list (docs/regions.md), such as
+    /// "europe-west4". Required when the pool is made; it cannot change afterwards.
+    #[prost(string, tag = "10")]
+    pub region: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct GetPoolRequest {
@@ -498,10 +504,12 @@ pub struct BilledSubenv {
     pub subenv_id: ::prost::alloc::string::String,
     #[prost(uint64, tag = "2")]
     pub billed_ms: u64,
-    /// billed_ms at the control plane's price per cell-hour, rounded half up once per
-    /// sub-environment.
+    /// billed_ms at the control plane's price per cell-hour in the sub-environment's region,
+    /// rounded half up once per sub-environment.
     #[prost(uint64, tag = "3")]
     pub cents: u64,
+    #[prost(string, tag = "4")]
+    pub region: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct OffboardRequest {
@@ -765,6 +773,9 @@ pub struct DailyUsageRow {
     pub subenv_id: ::prost::alloc::string::String,
     #[prost(double, tag = "3")]
     pub cell_minutes: f64,
+    /// Where the sub-environment's cells ran.
+    #[prost(string, tag = "4")]
+    pub region: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct DailySandboxes {
@@ -1050,6 +1061,13 @@ pub enum ErrorReason {
     NotReady = 18,
     /// PERMISSION_DENIED: the sign-up is closed.
     SignUpClosed = 19,
+    /// UNAVAILABLE: every zone of the pool's region refused a new cell (out of machines) and
+    /// no cell of the pool could take the sandbox. Nothing was billed, nothing is queued and
+    /// no other region is tried: create the sandbox in a sub-environment of another region,
+    /// or retry here after "clovelly-retry-after" seconds. "clovelly-region" names the region.
+    NoCapacity = 20,
+    /// INVALID_ARGUMENT: a region not in the published list; "clovelly-regions" is the list.
+    UnknownRegion = 21,
 }
 impl ErrorReason {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -1078,6 +1096,8 @@ impl ErrorReason {
             Self::CreditExhausted => "CREDIT_EXHAUSTED",
             Self::NotReady => "NOT_READY",
             Self::SignUpClosed => "SIGN_UP_CLOSED",
+            Self::NoCapacity => "NO_CAPACITY",
+            Self::UnknownRegion => "UNKNOWN_REGION",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -1103,6 +1123,8 @@ impl ErrorReason {
             "CREDIT_EXHAUSTED" => Some(Self::CreditExhausted),
             "NOT_READY" => Some(Self::NotReady),
             "SIGN_UP_CLOSED" => Some(Self::SignUpClosed),
+            "NO_CAPACITY" => Some(Self::NoCapacity),
+            "UNKNOWN_REGION" => Some(Self::UnknownRegion),
             _ => None,
         }
     }
@@ -1283,8 +1305,9 @@ pub mod control_client {
                 );
             self.inner.unary(req, path, codec).await
         }
-        /// Creates or updates a sub-environment's pool. Machine type, release and test
-        /// metadata are operator fields; an environment token leaves them as they are.
+        /// Creates or updates a sub-environment's pool, which runs in one region. Machine type,
+        /// release and test metadata are operator fields; an environment token leaves them as
+        /// they are. A pool's region never changes: another region is another sub-environment.
         pub async fn put_pool(
             &mut self,
             request: impl tonic::IntoRequest<super::Pool>,
@@ -1744,8 +1767,9 @@ pub mod control_server {
             &self,
             request: tonic::Request<super::Subenvironment>,
         ) -> std::result::Result<tonic::Response<super::Subenvironment>, tonic::Status>;
-        /// Creates or updates a sub-environment's pool. Machine type, release and test
-        /// metadata are operator fields; an environment token leaves them as they are.
+        /// Creates or updates a sub-environment's pool, which runs in one region. Machine type,
+        /// release and test metadata are operator fields; an environment token leaves them as
+        /// they are. A pool's region never changes: another region is another sub-environment.
         async fn put_pool(
             &self,
             request: tonic::Request<super::Pool>,

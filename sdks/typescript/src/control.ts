@@ -41,6 +41,11 @@ export class Control {
     return this.#unary(pb.controlService.PlaceSandbox, request, PLACE_DEADLINE_MS);
   }
 
+  /** Sets a sub-environment's pool: its region and the customer's settings. */
+  putPool(request: Partial<pb.Pool>): Promise<pb.Pool> {
+    return this.#unary(pb.controlService.PutPool, request, LOCATE_DEADLINE_MS);
+  }
+
   /** Where an existing sandbox lives. */
   locateSandbox(sandboxId: string): Promise<pb.Placement> {
     return this.#unary(pb.controlService.LocateSandbox, { sandboxId }, LOCATE_DEADLINE_MS);

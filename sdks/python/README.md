@@ -105,6 +105,21 @@ directly: `.verify()` runs the probe, and `create_sandbox`, `exec`, `read_file`,
 `write_file`, `kill` and `get_receipt` mirror the RPCs, passing ids and keys through
 unchecked so the cell's own checks can be exercised.
 
+## Regions
+
+```python
+pool = env.put_pool("bank-a", region="europe-west4", min_warm_per_zone=0, idle_window_secs=0)
+pool.region, pool.zones                  # "europe-west4", ("europe-west4-a", ...)
+```
+
+A sub-environment's cells run in the region its pool names, one of the published list
+(`docs/regions.md`); another name raises `UnknownRegion`, whose `.regions` is the list. The
+region is set once: another region is another sub-environment. The control plane uses every
+approved zone of it and hides a zone that is out of machines. When every zone of the region
+is out and no cell can take the sandbox, `env.sandbox()` raises `NoCapacity` within seconds,
+billing nothing, with `.region` and `.retry_after`. The SDK never queues it or tries another
+region: that choice is yours, by creating the sandbox in a sub-environment elsewhere.
+
 ## Credentials
 
 ```python
@@ -255,6 +270,8 @@ None), `.code` (the gRPC status code name) and `.details`.
 | `NO_CELL_READY` | `NoCellReady` | control plane |
 | `CELL_CREATE_FAILED` | `CellCreateFailed` | control plane |
 | `QUOTA_EXCEEDED` | `QuotaExceeded` | control plane |
+| `NO_CAPACITY` | `NoCapacity` (`.region`, `.retry_after` seconds) | control plane |
+| `UNKNOWN_REGION` | `UnknownRegion` (`.regions`, the published list) | control plane |
 | `STORAGE` | `StorageUnavailable` | control plane |
 | `NO_SUCH_TEMPLATE` | `NoSuchTemplate` | control plane |
 

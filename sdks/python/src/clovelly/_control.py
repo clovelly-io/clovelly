@@ -20,7 +20,7 @@ from . import _parse
 from ._template import Template
 from .errors import ProtocolError, _control_error
 
-__all__ = ["Control", "Placement", "target"]
+__all__ = ["Control", "Placement", "Pool", "target"]
 
 # A cold placement blocks while a cell boots (SPEC.md phase 2 criterion 6: within 3 minutes).
 PLACE_TIMEOUT_SECS = 330.0
@@ -83,6 +83,29 @@ class Placement:
         )
 
 
+@dataclass(frozen=True)
+class Pool:
+    """A sub-environment's pool as the control plane holds it: the ``region`` its cells run
+    in, the ``zones`` of that region it uses (the control plane's choice, every approved
+    zone), warm cells per zone and the idle window."""
+
+    subenv: str
+    region: str
+    zones: tuple[str, ...]
+    min_warm_per_zone: int
+    idle_window_secs: int
+
+    @classmethod
+    def _from_proto(cls, msg: control_pb2.Pool) -> Pool:
+        return cls(
+            subenv=msg.subenv_id,
+            region=msg.region,
+            zones=tuple(msg.zones),
+            min_warm_per_zone=msg.min_warm_per_zone,
+            idle_window_secs=msg.idle_window_secs,
+        )
+
+
 class Control:
     """A TLS channel to the control plane. Thread-safe."""
 
@@ -114,6 +137,23 @@ class Control:
         except grpc.RpcError as err:
             raise _control_error(err) from None
         return Placement._from_proto(reply)
+
+    def put_pool(
+        self, env_id: str, subenv: str, region: str, min_warm_per_zone: int, idle_window_secs: int
+    ) -> Pool:
+        """``Control.PutPool`` with the customer's fields; zero idle window is the default."""
+        request = control_pb2.Pool(
+            env_id=env_id,
+            subenv_id=subenv,
+            region=region,
+            min_warm_per_zone=min_warm_per_zone,
+            idle_window_secs=idle_window_secs,
+        )
+        try:
+            reply = self._stub.PutPool(request, timeout=LOCATE_TIMEOUT_SECS, metadata=self._metadata)
+        except grpc.RpcError as err:
+            raise _control_error(err) from None
+        return Pool._from_proto(reply)
 
     def locate(self, sandbox_id: str) -> Placement:
         """``Control.LocateSandbox``: the cell an existing sandbox lives on."""

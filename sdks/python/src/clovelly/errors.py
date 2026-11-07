@@ -53,6 +53,8 @@ __all__ = [
     "CellCreateFailed",
     "QuotaExceeded",
     "CreditExhausted",
+    "NoCapacity",
+    "UnknownRegion",
     "CellVerificationError",
     "CellUnavailable",
     "ControlPlaneUnavailable",
@@ -197,6 +199,42 @@ class QuotaExceeded(ClovellyError):
     Refused at once, never queued; the message names the quota."""
 
 
+class NoCapacity(ClovellyError):
+    """NO_CAPACITY: every zone of the pool's region is out of machines and no cell of the
+    pool can take the sandbox. Nothing was billed and nothing is queued; no other region is
+    tried. ``region`` names the region; ``retry_after`` is how many seconds until the
+    control plane tries those zones again (docs/regions.md). Create the sandbox in a
+    sub-environment of another region, or retry after that."""
+
+    def __init__(
+        self,
+        details: str,
+        *,
+        region: str,
+        retry_after: int,
+        reason: Optional[str] = None,
+        code: Optional[str] = None,
+    ) -> None:
+        super().__init__(details, reason=reason, code=code)
+        self.region = region
+        self.retry_after = retry_after
+
+
+class UnknownRegion(ClovellyError):
+    """UNKNOWN_REGION: the region is not in the published list; ``regions`` is the list."""
+
+    def __init__(
+        self,
+        details: str,
+        *,
+        regions: tuple[str, ...],
+        reason: Optional[str] = None,
+        code: Optional[str] = None,
+    ) -> None:
+        super().__init__(details, reason=reason, code=code)
+        self.regions = regions
+
+
 class CreditExhausted(ClovellyError):
     """CREDIT_EXHAUSTED: the organization has no credit, no card on file, or a failed charge
     past its grace, so nothing new is placed. Running sandboxes finish to their timeout; credit
@@ -329,17 +367,32 @@ _CONTROL_REASONS: _ErrorTable = {
     "CREDIT_EXHAUSTED": CreditExhausted,
     "NOT_READY": ControlPlaneUnavailable,
     "SIGN_UP_CLOSED": PermissionDenied,
+    # Built with their trailers by _from_rpc.
+    "NO_CAPACITY": NoCapacity,
+    "UNKNOWN_REGION": UnknownRegion,
 }
 
 _TRANSPORT_CODES = (grpc.StatusCode.UNAVAILABLE, grpc.StatusCode.DEADLINE_EXCEEDED)
 
 
-def _reason(err: grpc.RpcError) -> Optional[str]:
-    """The ``clovelly-error`` trailer of a failed call, if the server sent one."""
+def _trailer(err: grpc.RpcError, name: str) -> Optional[str]:
+    """One trailing metadata value of a failed call, if the server sent it."""
     for key, value in err.trailing_metadata() or ():
-        if key == "clovelly-error":
+        if key == name:
             return value if isinstance(value, str) else value.decode("ascii", "replace")
     return None
+
+
+def _reason(err: grpc.RpcError) -> Optional[str]:
+    """The ``clovelly-error`` trailer of a failed call, if the server sent one."""
+    return _trailer(err, "clovelly-error")
+
+
+def _seconds(value: Optional[str]) -> int:
+    try:
+        return max(0, int(value or ""))
+    except ValueError:
+        return 0
 
 
 def _from_rpc(
@@ -348,6 +401,18 @@ def _from_rpc(
     code = err.code()
     details = err.details() or ""
     reason = _reason(err)
+    if table.get(reason or "") is NoCapacity:
+        return NoCapacity(
+            details,
+            region=_trailer(err, "clovelly-region") or "",
+            retry_after=_seconds(_trailer(err, "clovelly-retry-after")),
+            reason=reason,
+            code=code.name,
+        )
+    if table.get(reason or "") is UnknownRegion:
+        listed = _trailer(err, "clovelly-regions") or ""
+        regions = tuple(r for r in listed.split(",") if r)
+        return UnknownRegion(details, regions=regions, reason=reason, code=code.name)
     if reason is not None:
         return table.get(reason, ClovellyError)(details, reason=reason, code=code.name)
     if code in _TRANSPORT_CODES:
