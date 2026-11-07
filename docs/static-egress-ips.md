@@ -3,11 +3,13 @@
 A sandbox's outbound traffic, through the in-cell proxy, leaves through Cloud NAT from its
 region's two reserved addresses, so a destination can allowlist them. A cell uses the
 addresses of the region it runs in ([regions.md](regions.md)); to allowlist every region,
-allowlist all six.
+allowlist all ten.
 
 | Region | Addresses |
 |---|---|
 | us-central1 | `34.9.161.117`, `34.136.66.133` |
+| us-east4 | `35.188.249.103`, `34.181.128.76` |
+| us-west1 | `34.127.79.50`, `35.252.76.110` |
 | europe-west4 | `34.187.84.171`, `34.91.113.205` |
 | asia-southeast1 | `34.126.94.195`, `34.21.146.68` |
 

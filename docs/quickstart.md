@@ -25,7 +25,7 @@ The console checks that your verifier answers and serves your CA, creates your e
 
 On the Billing tab, add a card: no cell boots until your organization has a card on file and credit above zero
 ([billing.md](billing.md)). On the Settings tab, add your sub-environment `main` and its pool, and choose the pool's region:
-`us-central1`, `europe-west4` or `asia-southeast1`. The region is where its sandboxes run and where their traffic leaves
+`us-central1`, `us-east4`, `us-west1`, `europe-west4` or `asia-southeast1`. The region is where its sandboxes run and where their traffic leaves
 from, and it is set once ([regions.md](regions.md) says what it does not decide). The pool's defaults boot nothing until
 a sandbox asks for a cell.
 

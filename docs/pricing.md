@@ -17,6 +17,10 @@ A cell-hour costs what its region costs: the region of the sub-environment it ru
 | `europe-west4` | `c3-standard-8` | $0.66 |
 | `us-central1` | `c3-standard-22` | $1.65 |
 | `us-central1` | `c3-standard-8` | $0.60 |
+| `us-east4` | `c3-standard-22` | $1.84 |
+| `us-east4` | `c3-standard-8` | $0.67 |
+| `us-west1` | `c3-standard-22` | $1.65 |
+| `us-west1` | `c3-standard-8` | $0.60 |
 
 ## Environment fee
 

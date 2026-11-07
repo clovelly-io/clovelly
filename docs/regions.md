@@ -7,12 +7,15 @@ run in that region, and their traffic to the internet leaves from that region's 
 | Region | Where | Zones |
 |---|---|---|
 | `us-central1` | Iowa, USA | `us-central1-a`, `us-central1-b`, `us-central1-c` |
+| `us-east4` | Ashburn, Virginia, USA | `us-east4-a`, `us-east4-c` |
+| `us-west1` | The Dalles, Oregon, USA | `us-west1-a`, `us-west1-b` |
 | `europe-west4` | Eemshaven, Netherlands | `europe-west4-a`, `europe-west4-b`, `europe-west4-c` |
 | `asia-southeast1` | Jurong West, Singapore | `asia-southeast1-a`, `asia-southeast1-b`, `asia-southeast1-c` |
 
 A zone is in the list once a cell of the current release has booted there and its firmware measurement has been
 reviewed; the release policy's `allowed_zones` names exactly these zones, and your verifier refuses a cell from any
-other.
+other. `us-east4` and `us-west1` have two zones each: their other zones do not take a confidential (TDX) VM, so a
+stockout in both of a region's two zones is a region out.
 
 ## Choosing one
 
