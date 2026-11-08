@@ -29,7 +29,9 @@
 //!    network in the same namespaces, the same nftables rules) is measured the same way.
 //!
 //! `throughput-cell` (phase 11 criterion 9, on the big cell) runs step 2 alone, on
-//! netstack, with step 3 only if it stalls: [`Scope::Production`].
+//! netstack, with step 3 only if it stalls: [`Scope::Production`]. `throughput-shared`
+//! (phase 13 criterion 8) runs step 2 alone on netstack at a full cell shared at the
+//! maximum factor ([`FullCell::SHARED`]), every figure measured against no bound.
 //!
 //! The destination is the peer VM's internal address, allowed by this harness's proxy
 //! guard only (cells never allow a non-public address): reaching it through Cloud NAT
@@ -47,7 +49,7 @@ use aws_lc_rs::encoding::AsDer;
 use aws_lc_rs::signature::{ECDSA_P256_SHA256_ASN1_SIGNING, EcdsaKeyPair, KeyPair as _};
 use common::bundle::Policy;
 use common::ids::SandboxId;
-use common::sandbox::{CpuHalves, MemoryGib, Size};
+use common::sandbox::{CpuHalves, CpuShare, MemoryGib, Size};
 use egress_proxy::{Ports, Supervisor, SupervisorConfig};
 use serde_json::{Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
@@ -476,6 +478,30 @@ async fn held(cell: &Cell, peer: SocketAddr, full: usize) -> anyhow::Result<Valu
     Ok(json!({ "held": total, "destination_open_max": max_count, "proxy_open": proxy_open, "sandboxes": reports }))
 }
 
+/// The full cell step 2 measures: the sharing factor the cell runs at and the size of
+/// each sandbox; it holds as many as its capacity places.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FullCell {
+    pub share: CpuShare,
+    pub size: Size,
+}
+
+impl FullCell {
+    /// Phases 3 and 11: dedicated CPU, sandboxes of 0.5 vCPU and 2 GiB (14 on a
+    /// c3-standard-8, 171 on a c3-standard-88, where memory binds).
+    pub const DEDICATED: FullCell = FullCell { share: CpuShare::DEDICATED, size: Size::new(CpuHalves(1), MemoryGib(2)) };
+    /// Phase 13 criterion 8: the maximum factor, sandboxes of 1 vCPU and 1 GiB (342 on a
+    /// c3-standard-88, where memory binds before the 348 its CPU would take).
+    pub const SHARED: FullCell = FullCell { share: CpuShare::MAX, size: Size::new(CpuHalves(2), MemoryGib(1)) };
+
+    /// How many sandboxes fill a cell that may place `placeable`.
+    pub fn count(self, placeable: Size) -> usize {
+        let capacity = self.share.capacity(placeable);
+        let n = (capacity.cpu.0 / self.size.cpu.0.max(1)).min(capacity.memory.0 / self.size.memory.0.max(1));
+        usize::try_from(n).unwrap_or(0).max(1)
+    }
+}
+
 /// How much of the measurement to run.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Scope {
@@ -486,7 +512,10 @@ pub enum Scope {
     Production,
 }
 
-pub fn run(checks: &mut Checks, out: &Path, peer: SocketAddr, scope: Scope) -> anyhow::Result<()> {
+/// Runs the measurement against the destination `peer`, its full-cell step at `full_cell`.
+pub fn run(checks: &mut Checks, out: &Path, peer: SocketAddr, scope: Scope, full_cell: FullCell) -> anyhow::Result<()> {
+    let share = full_cell.share;
+    let shared = share != CpuShare::DEDICATED;
     let SocketAddr::V4(peer4) = peer else { bail!("--peer must be IPv4") };
     let agent = std::env::current_exe()?;
     let flags = Command::new("runsc").arg("flags").output().map(|o| {
@@ -552,9 +581,7 @@ pub fn run(checks: &mut Checks, out: &Path, peer: SocketAddr, scope: Scope) -> a
     let production = rt.block_on(async {
         let placeable = cgroup::placeable(cgroup::machine()?);
         cgroup::setup(placeable)?;
-        // A full cell: as many sandboxes of 0.5 vCPU and 2 GiB as it places (14 on a
-        // c3-standard-8, 171 on a c3-standard-88, where memory binds).
-        let full = usize::try_from(placeable.cpu.0.min(placeable.memory.0 / 2)).unwrap_or(0).max(1);
+        let full = full_cell.count(placeable);
         net::setup_cell(Ports::CELL).await?;
         let roots = std::fs::read_to_string(ROOTS)?;
         // The production path since phase 4: the proxy is its own process.
@@ -592,6 +619,7 @@ pub fn run(checks: &mut Checks, out: &Path, peer: SocketAddr, scope: Scope) -> a
                 },
                 placeable,
                 Identity {
+                    cpu_share: share,
                     env: "bench".parse().expect("label"),
                     subenv: "a".parse().expect("label"),
                     release: "clovelly-bench".parse().expect("release id"),
@@ -620,7 +648,7 @@ pub fn run(checks: &mut Checks, out: &Path, peer: SocketAddr, scope: Scope) -> a
                 policy: policy(*peer4.ip(), placeable)?,
                 proxy: Arc::clone(&proxy),
             };
-            let sizes = vec![Size::new(CpuHalves(1), MemoryGib(2)); full];
+            let sizes = vec![full_cell.size; full];
             set_backlog(1000)?;
             let d4 = transfers(&cell, &sizes, 10, peer, Recovery::AsStarted).await;
             set_backlog(net::NETDEV_BACKLOG)?;
@@ -635,16 +663,18 @@ pub fn run(checks: &mut Checks, out: &Path, peer: SocketAddr, scope: Scope) -> a
                 proxy: Arc::clone(&proxy),
             };
             let one = transfers(&cell, &[Size::new(CpuHalves(2), MemoryGib(2))], 10, peer, Recovery::AsStarted).await?;
-            let all = transfers(&cell, &vec![Size::new(CpuHalves(1), MemoryGib(2)); full], 10, peer, Recovery::AsStarted).await?;
+            let all = transfers(&cell, &vec![full_cell.size; full], 10, peer, Recovery::AsStarted).await?;
             let hold = held(&cell, peer, full).await?;
             let stalled = [&one, &all].iter().any(|r| r.summary()["slowest_over_median"].as_f64().is_none_or(|x| x > 3.0));
             out.insert(
                 label.to_owned(),
                 json!({ "concurrency_1": one.summary(), "full_cell": all.summary(), "full_cell_sandboxes": full,
-                        "connections": hold, "stalled": stalled }),
+                        "connections": hold, "stalled": stalled, "cpu_share": share.get(),
+                        "full_cell_size": { "cpu": full_cell.size.cpu.vcpus(), "memory_gib": full_cell.size.memory.0 } }),
             );
-            // Decision 6's fallback is measured only if netstack fails the stall bound.
-            if label == "netstack" && !stalled {
+            // Decision 6's fallback is measured only if netstack fails the stall bound, and
+            // not at all on a shared cell, which only measures.
+            if label == "netstack" && (!stalled || shared) {
                 break;
             }
         }
@@ -680,8 +710,23 @@ pub fn run(checks: &mut Checks, out: &Path, peer: SocketAddr, scope: Scope) -> a
         let full = &r["full_cell"];
         let held = &r["connections"];
         let f = |v: &Value| v.as_f64().unwrap_or(f64::NAN);
-        let tag = if label == "netstack" { String::new() } else { format!("-{label}") };
-        let ok = |b: bool| if b { Status::Pass } else { Status::Fail };
+        let tag = match (shared, label.as_str()) {
+            (true, l) => format!("-shared-{l}"),
+            (false, "netstack") => String::new(),
+            (false, l) => format!("-{l}"),
+        };
+        let ok = |b: bool| match (shared, b) {
+            (true, _) => Status::Measured,
+            (false, true) => Status::Pass,
+            (false, false) => Status::Fail,
+        };
+        let sized = format!(
+            "{} sandboxes of {} vCPU, {} GiB at cpu_share {}",
+            r["full_cell_sandboxes"],
+            full_cell.size.cpu.vcpus(),
+            full_cell.size.memory.0,
+            share
+        );
         checks.record(
             &format!("c8-single-p50{tag}"),
             ok(f(&c1["p50_mb_s"]) >= 500.0),
@@ -690,7 +735,7 @@ pub fn run(checks: &mut Checks, out: &Path, peer: SocketAddr, scope: Scope) -> a
         checks.record(
             &format!("c8-aggregate{tag}"),
             ok(f(&full["aggregate_mb_s"]) >= 500.0),
-            format!("{label}: a full cell ({} sandboxes of 0.5 vCPU, 2 GiB), 10 × 100 MB each at once: aggregate {:.0} MB/s (target ≥ 500), per-transfer p50 {:.0} MB/s", r["full_cell_sandboxes"], f(&full["aggregate_mb_s"]), f(&full["p50_mb_s"])),
+            format!("{label}: a full cell ({sized}), 10 × 100 MB each at once: aggregate {:.0} MB/s (target ≥ 500), per-transfer p50 {:.0} MB/s, slowest/median {:.2}", f(&full["aggregate_mb_s"]), f(&full["p50_mb_s"]), f(&full["slowest_over_median"])),
         );
         match scope {
             Scope::Diagnose => checks.record(
@@ -716,7 +761,7 @@ pub fn run(checks: &mut Checks, out: &Path, peer: SocketAddr, scope: Scope) -> a
         checks.record(
             &format!("c8-connections{tag}"),
             ok(held["destination_open_max"].as_u64().unwrap_or(0) >= 2000),
-            format!("{label}: {} connections held from {} sandboxes; the destination saw {} open at once, the proxy {} (target ≥ 2,000)", held["held"], r["full_cell_sandboxes"], held["destination_open_max"], held["proxy_open"]),
+            format!("{label}: {} connections held from {sized}; the destination saw {} open at once, the proxy {} (target ≥ 2,000)", held["held"], held["destination_open_max"], held["proxy_open"]),
         );
         // Both hops, each with its receiver's count of duplicates of data it already had
         // (spurious retransmissions).
@@ -732,8 +777,8 @@ pub fn run(checks: &mut Checks, out: &Path, peer: SocketAddr, scope: Scope) -> a
             &format!("c8-hop-retransmissions{tag}"),
             ok(f(&c1["sandbox_retrans_per_gb"]) < 100.0 && f(&full["sandbox_retrans_per_gb"]) < 100.0),
             format!(
-                "{label}, tcp_recovery {} (target under 100 per GB sandbox → proxy): one sandbox: {}; a full cell ({} sandboxes): {}",
-                c1["tcp_recovery"], hops(c1), r["full_cell_sandboxes"], hops(full)
+                "{label}, tcp_recovery {} (target under 100 per GB sandbox → proxy): one sandbox: {}; a full cell ({sized}): {}",
+                c1["tcp_recovery"], hops(c1), hops(full)
             ),
         );
     }
@@ -743,6 +788,17 @@ pub fn run(checks: &mut Checks, out: &Path, peer: SocketAddr, scope: Scope) -> a
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A full cell is as many sandboxes as its capacity places, memory binding where it
+    /// does: phase 11's 171 on the 88, phase 13's 342 at the maximum factor (348 by CPU).
+    #[test]
+    fn a_full_cell_counts_what_the_capacity_places() {
+        let c3_88 = Size::new(CpuHalves(174), MemoryGib(342));
+        let c3_8 = Size::new(CpuHalves(14), MemoryGib(28));
+        assert_eq!(FullCell::DEDICATED.count(c3_8), 14);
+        assert_eq!(FullCell::DEDICATED.count(c3_88), 171);
+        assert_eq!(FullCell::SHARED.count(c3_88), 342);
+    }
 
     /// The full-cell fairness figure: the fastest and slowest sandbox totals over the median's.
     #[test]
