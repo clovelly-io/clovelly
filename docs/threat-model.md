@@ -145,9 +145,12 @@ Cloud KMS and AWS KMS, or one the customer wrote. What that means:
   which serves TLS, keeps one in its configuration for the cell's lifetime. The cell
   key also serves as the HPKE recipient and receipt key, as the spec requires.
 - **RTMR0 depends on the VM's shape.** Machine type (ACPI tables, TD HOB) and PCI layout
-  (the boot entry's device path) are measured. Every cell of a release must use the
-  shape and VM options its RTMR0 was recorded on (c3-standard-8, Secure Boot, no vTPM,
-  no display device).
+  (the boot entry's device path) are measured. Every cell of a release must use a shape
+  and VM options an RTMR0 was recorded on (Secure Boot, no vTPM, no display device). A
+  release lists one RTMR0 per host firmware and shape, each named with its
+  `machine_type` (c3-standard-8, and c3-standard-88 from the release after 0.5.0); a
+  verifier accepts a quote whose RTMR0 is any listed value, so a shape's value is
+  trusted exactly as another shape's.
 - **MRSEAM is an allow list.** When Google moves hosts to a new TDX module, check 4
   refuses cells on it until the policy lists the new MRSEAM.
 - **The staging verifier also trusts test releases.** Their policy is signed by a

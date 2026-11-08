@@ -15,7 +15,10 @@ use std::time::{Duration, Instant};
 
 use common::ids::SandboxId;
 
-use crate::runsc::{Bundle, Network, Runsc, RunscError, Spec};
+use common::sandbox::Size;
+
+use crate::cgroup;
+use crate::runsc::{Bundle, Network, Resources, Runsc, RunscError, Spec};
 
 /// One measured sandbox.
 #[derive(Debug, Clone, Copy)]
@@ -47,6 +50,10 @@ pub struct Setup<'a> {
     pub runsc: &'a Runsc,
     pub rootfs: &'a Path,
     pub scratch: &'a Path,
+    /// Each sandbox in its own cgroup at this size, as the agent creates them (phase 11's
+    /// profile; `runsc` must enforce cgroups and [`cgroup::setup`] must have run). `None`:
+    /// no limits, as phase 0 measured.
+    pub sized: Option<Size>,
 }
 
 /// Runs unmeasured samples so runsc and the rootfs are in page cache, under the same
@@ -99,6 +106,7 @@ pub fn measure(setup: Setup<'_>, concurrency: usize, target: usize, budget: Dura
 }
 
 fn sample(setup: Setup<'_>, id: &SandboxId) -> Result<Sample, RunscError> {
+    let resources = setup.sized.map(|size| Resources { cgroup: cgroup::sandbox_path(id), size });
     let bundle = Bundle::write(
         setup.scratch.join(id.as_str()),
         &Spec {
@@ -107,7 +115,7 @@ fn sample(setup: Setup<'_>, id: &SandboxId) -> Result<Sample, RunscError> {
             env: &[],
             network: &Network::None,
             binds: &[],
-            resources: None,
+            resources: resources.as_ref(),
         },
     )?;
     let runsc = setup.runsc;

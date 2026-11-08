@@ -11,14 +11,19 @@ A cell-hour costs what its region costs: the region of the sub-environment it ru
 |---|---|---|
 | `asia-southeast1` | `c3-standard-22` | $3.30 |
 | `asia-southeast1` | `c3-standard-8` | $1.20 |
+| `asia-southeast1` | `c3-standard-88` | $13.20 |
 | `europe-west4` | `c3-standard-22` | $2.8875 |
 | `europe-west4` | `c3-standard-8` | $1.05 |
+| `europe-west4` | `c3-standard-88` | $11.55 |
 | `us-central1` | `c3-standard-22` | $2.6125 |
 | `us-central1` | `c3-standard-8` | $0.95 |
+| `us-central1` | `c3-standard-88` | $10.45 |
 | `us-east4` | `c3-standard-22` | $2.8875 |
 | `us-east4` | `c3-standard-8` | $1.05 |
+| `us-east4` | `c3-standard-88` | $11.55 |
 | `us-west1` | `c3-standard-22` | $2.8875 |
 | `us-west1` | `c3-standard-8` | $1.05 |
+| `us-west1` | `c3-standard-88` | $11.55 |
 
 ## Egress
 

@@ -16,15 +16,20 @@ a non-commercial licence.
 - curl, the Google tools (`go-tdx-guest-tools`, `gcetcbendorsement`, `attest-tools`) and
   their libraries (nghttp2/3, ngtcp2, libssh2, libpsl, krb5, openssl, …) are in
   `image-test` only.
+- perf (`perf-linux`, built from the kernel tree, GPL-2.0-only; the pinned nixpkgs
+  records no licence for it) and its libraries (libtraceevent, libpfm, numactl, slang,
+  libpng, binutils, the d3-flame-graph templates) are in `image-test` only, for phase
+  11's profile of the create path.
 - chrony (phase 5: time from Google's NTP on the metadata server, SPEC.md "The cell")
   and its libraries (gnutls, nettle, gmp, libtasn1, p11-kit, unbound, libidn2,
   libunistring, libedit, libseccomp, libcap, libevent) are in both images.
 - python3 and its libraries (sqlite, gdbm, Berkeley DB, readline, ncurses, mpdecimal,
   libffi, expat, …) are the sandbox base bundle's.
-- Three paths the generator cannot attribute are base-OS data and runtime files; their
-  nixpkgs licences: `iana-etc` 20251215 (MIT), `mailcap` 2.1.54 (MIT), and
+- Paths the generator cannot attribute are base-OS data and runtime files; their
+  nixpkgs licences: `iana-etc` 20251215 (MIT), `mailcap` 2.1.54 (MIT),
   `xgcc-15.3.0-libgcc`, GCC's runtime library (GPL-3.0-or-later with the GCC Runtime
-  Library Exception).
+  Library Exception), and in `image-test` only `binutils-2.46` and its `-lib`
+  (GPL-3.0-or-later) and `d3-flame-graph-templates-4.1.3` (Apache-2.0), perf's.
 
 | Component | Version | Licence |
 |---|---|---|
@@ -68,10 +73,13 @@ a non-commercial licence.
 | libnetfilter_conntrack | 1.1.1 | GPL-2.0-or-later |
 | libnfnetlink | 1.0.2 | GPL-2.0 |
 | libnftnl | 1.3.1 | GPL-2.0-or-later |
+| libpfm | 4.13.0 | GPL-2.0 |
+| libpng-apng | 1.6.58 | libpng-2.0 |
 | libpsl | 0.21.5 | MIT |
 | libseccomp | 2.6.1 | LGPL-2.1-only |
 | libssh2 | 1.11.1 | BSD-3-Clause |
 | libtasn1 | 4.21.0 | LGPL-2.0-or-later |
+| libtraceevent | 1.9 | LGPL-2.1-only |
 | libunistring | 1.4.2 | LGPL-3.0-or-later |
 | libxcrypt | 4.5.2 | LGPL-2.1-or-later |
 | linux | 6.18.57-shrunk | GPL-2.0-only |
@@ -84,13 +92,16 @@ a non-commercial licence.
 | nghttp3 | 1.15.0 | MIT |
 | ngtcp2 | 1.22.1 | MIT |
 | nss-cacert | 3.126 | MPL-2.0 |
+| numactl | 2.0.18 | GPL-2.0-only OR LGPL-2.1 |
 | openssl | 3.6.5 | Apache-2.0 |
 | p11-kit | 0.26.2 | BSD-3-Clause |
+| perf-linux | 7.3 |  |
 | popt | 1.19 | MIT |
 | publicsuffix-list | 0-unstable-2026-05-13 | MPL-2.0 |
 | python3 | 3.13.15 | Python-2.0 |
 | readline | 8.3p3 | GPL-3.0-or-later |
 | runsc | 20261019.0 | Apache-2.0 |
+| slang | 2.3.3 | GPL-2.0-or-later |
 | sqlite | 3.51.2 | publicDomain |
 | systemd-minimal-libs | 260.5 | BSD-2-Clause OR BSD-3-Clause OR CC0-1.0 OR LGPL-2.1-or-later OR LGPL-2.0-or-later OR MIT OR MIT-0 OR OFL-1.1 OR publicDomain |
 | tzdata | 2026c | BSD-3-Clause OR publicDomain |
@@ -99,7 +110,10 @@ a non-commercial licence.
 | xz | 5.8.4 | GPL-2.0-or-later OR LGPL-2.1-or-later |
 | zlib | 1.3.2 | Zlib |
 | zstd | 1.5.7 | BSD-3-Clause |
+| (unattributed) `1sihdz970c0a1j3x7iqia6iiasj9p86n-d3-flame-graph-templates-4.1.3` | | |
 | (unattributed) `78rlvr7v1kh0rx8ndvv3qfnk1pd9m6k9-iana-etc-20251215` | | |
+| (unattributed) `g2i5zxslx9msaqjy14hdp2af064i9pbv-binutils-2.46` | | |
 | (unattributed) `ipczl7sv1dsdl7l280mqdy7akhb5mq9c-dns-root-data-2025-04-14` | | |
 | (unattributed) `l1n6wi2lyzglvgzbwzw9n9w2pzkcj41i-xgcc-15.3.0-libgcc` | | |
 | (unattributed) `xql1i59wn5n0v4hxx1xhji9p6zns8hsi-mailcap-2.1.54` | | |
+| (unattributed) `znsjfmcnjvwvj3ccm7zkhaksg6r2yj8m-binutils-2.46-lib` | | |

@@ -54,7 +54,7 @@ pub enum PayloadError {
 ///                   "zone": "us-central1-a", "machine_type": "c3-standard-44" } ],
 ///     "disk_sha256": "<64 hex>" },
 ///   "measurements": {
-///     "firmware": [ { "mrtd": "<96 hex>", "rtmr0": "<96 hex>" } ],
+///     "firmware": [ { "mrtd": "<96 hex>", "rtmr0": "<96 hex>", "machine_type": "c3-standard-8" } ],
 ///     "rtmr1": "<96 hex>", "rtmr2": "<96 hex>", "rtmr3": "<96 hex>" },
 ///   "images": { "verifier": "sha256:<64 hex>", "clovelly-keys": "sha256:<64 hex>" } }
 /// ```
@@ -129,8 +129,8 @@ impl FromStr for Build {
 }
 
 /// The release's measurement set. RTMR1 and RTMR2 are predicted from the image (and
-/// equal on both builds); RTMR0 is recorded by a canary on each host firmware, paired
-/// with that firmware's MRTD; RTMR3 is never extended (SPEC.md decisions).
+/// equal on both builds); RTMR0 is recorded by a canary on each host firmware and cell
+/// shape, paired with that firmware's MRTD; RTMR3 is never extended (SPEC.md decisions).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Measurements {
@@ -145,6 +145,12 @@ pub struct Measurements {
 pub struct Firmware {
     pub mrtd: Measurement,
     pub rtmr0: Measurement,
+    /// The cell shape whose canary recorded `rtmr0` (RTMR0 measures the machine as well as
+    /// the firmware), so a reviewer can tell the values apart. Verifiers accept any listed
+    /// RTMR0 whatever its shape. Releases before phase 11 have none, and their signed bytes
+    /// stay as they are.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub machine_type: Option<MachineType>,
 }
 
 impl ReleasePayload {
@@ -518,6 +524,27 @@ mod tests {
         let mut v = payload();
         v["v"] = 2.into();
         assert!(matches!(parse(&v), Err(PayloadError::Schema(_))));
+    }
+
+    /// Phase 11 criterion 3: a firmware entry may name its cell shape; a payload without
+    /// the field (every release before phase 11) parses and keeps its exact bytes.
+    #[test]
+    fn a_firmware_entry_may_name_its_machine_type() {
+        let old = payload();
+        let bytes = crate::jcs::canonical(&old).unwrap();
+        let p = ReleasePayload::parse(&bytes).unwrap();
+        assert_eq!(p.measurements.firmware[0].machine_type, None);
+        assert_eq!(p.canonical(), bytes, "an old payload's bytes are unchanged");
+        let mut v = payload();
+        v["measurements"]["firmware"] = serde_json::json!([
+            { "mrtd": m(1), "rtmr0": m(2), "machine_type": "c3-standard-8" },
+            { "mrtd": m(1), "rtmr0": m(5), "machine_type": "c3-standard-88" } ]);
+        let p = parse(&v).unwrap();
+        let shapes: Vec<_> = p.measurements.firmware.iter().map(|f| f.machine_type.as_ref().map(MachineType::as_str)).collect();
+        assert_eq!(shapes, [Some("c3-standard-8"), Some("c3-standard-88")]);
+        assert_eq!(serde_json::to_value(&p).unwrap(), v);
+        v["measurements"]["firmware"][1]["machine_type"] = "an 88, I think".into();
+        assert!(matches!(parse(&v), Err(PayloadError::Schema(_))), "free text in machine_type");
     }
 
     #[test]

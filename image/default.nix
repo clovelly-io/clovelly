@@ -8,7 +8,7 @@
 #
 #   image-prod  no serial console, no results channel; the agent boots the cell.
 #               Its release id is `clovelly-<version>`, the workspace version.
-#   image-test  serial console, the Google attestation tools and curl; init runs the
+#   image-test  serial console, the Google attestation tools, curl and perf; init runs the
 #               harness and returns results by signed-URL upload and on serial, or
 #               (role `cell`) runs the cell with memory scans at its end, or (role
 #               `impostor`) serves an unverified certificate for the SDK to refuse.
@@ -321,6 +321,8 @@ let
       packages = [
         attest-tools
         pkgs.curl
+        # Phase 11's profile of the create path (harness `profile`): test image only.
+        pkgs.perf
       ];
       console = "console=ttyS0,115200";
     };
@@ -528,6 +530,7 @@ let
     python
     pkgs.cacert
     pkgs.curl
+    pkgs.perf
     runsc
     cell-agent
     egress-proxy

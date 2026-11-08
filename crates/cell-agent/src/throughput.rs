@@ -19,13 +19,17 @@
 //! 2. The production path, with the cell's own code (the proxy, the per-sandbox
 //!    namespaces and nftables, `Sandboxes::create`, so RACK-TLP off): 10 transfers of
 //!    100 MB from one sandbox of 1 vCPU; then 10 from each sandbox of a full cell at once
-//!    (as many of 0.5 vCPU and 1 GiB as it places: 14 on a c3-standard-8); then at least
+//!    (as many of 0.5 vCPU and 2 GiB as it places: 14 on a c3-standard-8, 171 on a
+//!    c3-standard-88); then at least
 //!    2,000 connections held at once, spread over a full cell. Per hop:
 //!    sandbox → proxy retransmissions from inside each sandbox, proxy → destination from
 //!    the cell's host stack, each with its receiver's DSACK count (the cell's, the
 //!    destination's). The hop target (under 100 per GB) is judged at both loads.
 //! 3. If a transfer is slower than 3× the median, decision 6's fallback (runsc's host
 //!    network in the same namespaces, the same nftables rules) is measured the same way.
+//!
+//! `throughput-cell` (phase 11 criterion 9, on the big cell) runs step 2 alone, on
+//! netstack, with step 3 only if it stalls: [`Scope::Production`].
 //!
 //! The destination is the peer VM's internal address, allowed by this harness's proxy
 //! guard only (cells never allow a non-public address): reaching it through Cloud NAT
@@ -454,7 +458,17 @@ async fn held(cell: &Cell, peer: SocketAddr, full: usize) -> anyhow::Result<Valu
     Ok(json!({ "held": total, "destination_open_max": max_count, "proxy_open": proxy_open, "sandboxes": reports }))
 }
 
-pub fn run(checks: &mut Checks, out: &Path, peer: SocketAddr) -> anyhow::Result<()> {
+/// How much of the measurement to run.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Scope {
+    /// Phase 3: the diagnosis on phase 0's path, then the production path with its two
+    /// full-cell diagnoses.
+    Diagnose,
+    /// Phase 11: the production path's verdicts alone.
+    Production,
+}
+
+pub fn run(checks: &mut Checks, out: &Path, peer: SocketAddr, scope: Scope) -> anyhow::Result<()> {
     let SocketAddr::V4(peer4) = peer else { bail!("--peer must be IPv4") };
     let agent = std::env::current_exe()?;
     let flags = Command::new("runsc").arg("flags").output().map(|o| {
@@ -472,13 +486,16 @@ pub fn run(checks: &mut Checks, out: &Path, peer: SocketAddr) -> anyhow::Result<
 
     // 1. The diagnosis on phase 0's path, in SPEC.md's order.
     let mut results = serde_json::Map::new();
-    let variants: [(&str, u32, Vec<&str>, bool, Recovery); 5] = [
+    let variants: Vec<(&str, u32, Vec<&str>, bool, Recovery)> = match scope {
+        Scope::Production => Vec::new(),
+        Scope::Diagnose => vec![
         ("p0-baseline", 1460, vec![], false, Recovery::AsStarted),
         ("d1-conntrack-liberal", 1460, vec![], true, Recovery::AsStarted),
         ("d2-gso-off", 1460, gso_flags.clone(), false, Recovery::AsStarted),
         ("d3-veth-1500", 1500, vec![], false, Recovery::AsStarted),
         ("d5-rack-off", 1460, vec![], false, Recovery::Classic),
-    ];
+        ],
+    };
     for (name, mtu, flags, liberal, recovery) in variants {
         if name == "d2-gso-off" && gso_flags.is_empty() {
             checks.record(&format!("c8-{name}"), Status::Measured, "runsc has neither -gso nor -software-gso; not measured");
@@ -508,16 +525,18 @@ pub fn run(checks: &mut Checks, out: &Path, peer: SocketAddr) -> anyhow::Result<
             Err(e) => checks.record(&format!("c8-{name}"), Status::Fail, format!("{e:#}")),
         }
     }
-    let _ = sh(&format!("ip netns del {MASQ_NETNS}; ip link del clovelly-mh; nft delete table ip clovelly_masq; sysctl -w net.ipv4.ip_forward=0"));
+    if scope == Scope::Diagnose {
+        let _ = sh(&format!("ip netns del {MASQ_NETNS}; ip link del clovelly-mh; nft delete table ip clovelly_masq; sysctl -w net.ipv4.ip_forward=0"));
+    }
 
     // 2. The production path.
     let rt = tokio::runtime::Runtime::new()?;
     let production = rt.block_on(async {
         let placeable = cgroup::placeable(cgroup::machine()?);
         cgroup::setup(placeable)?;
-        // A full cell: as many sandboxes of 0.5 vCPU and 1 GiB as it places (14 on a
-        // c3-standard-8).
-        let full = usize::try_from(placeable.cpu.0.min(placeable.memory.0)).unwrap_or(0).max(1);
+        // A full cell: as many sandboxes of 0.5 vCPU and 2 GiB as it places (14 on a
+        // c3-standard-8, 171 on a c3-standard-88, where memory binds).
+        let full = usize::try_from(placeable.cpu.0.min(placeable.memory.0 / 2)).unwrap_or(0).max(1);
         net::setup_cell(Ports::CELL).await?;
         let roots = std::fs::read_to_string(ROOTS)?;
         // The production path since phase 4: the proxy is its own process.
@@ -577,13 +596,13 @@ pub fn run(checks: &mut Checks, out: &Path, peer: SocketAddr) -> anyhow::Result<
         // backlog, against the cell's (net::NETDEV_BACKLOG, set by setup_cell). Diagnosis
         // 5: the production path at a full cell with netstack's RACK-TLP on, as runsc
         // starts it and as cells ran before they turned it off.
-        {
+        if scope == Scope::Diagnose {
             let cell = Cell {
                 sandboxes: make(NetworkMode::Sandbox),
                 policy: policy(*peer4.ip(), placeable)?,
                 proxy: Arc::clone(&proxy),
             };
-            let sizes = vec![Size::new(CpuHalves(1), MemoryGib(1)); full];
+            let sizes = vec![Size::new(CpuHalves(1), MemoryGib(2)); full];
             set_backlog(1000)?;
             let d4 = transfers(&cell, &sizes, 10, peer, Recovery::AsStarted).await;
             set_backlog(net::NETDEV_BACKLOG)?;
@@ -598,7 +617,7 @@ pub fn run(checks: &mut Checks, out: &Path, peer: SocketAddr) -> anyhow::Result<
                 proxy: Arc::clone(&proxy),
             };
             let one = transfers(&cell, &[Size::new(CpuHalves(2), MemoryGib(2))], 10, peer, Recovery::AsStarted).await?;
-            let all = transfers(&cell, &vec![Size::new(CpuHalves(1), MemoryGib(1)); full], 10, peer, Recovery::AsStarted).await?;
+            let all = transfers(&cell, &vec![Size::new(CpuHalves(1), MemoryGib(2)); full], 10, peer, Recovery::AsStarted).await?;
             let hold = held(&cell, peer, full).await?;
             let stalled = [&one, &all].iter().any(|r| r.summary()["slowest_over_median"].as_f64().is_none_or(|x| x > 3.0));
             out.insert(
@@ -653,7 +672,7 @@ pub fn run(checks: &mut Checks, out: &Path, peer: SocketAddr) -> anyhow::Result<
         checks.record(
             &format!("c8-aggregate{tag}"),
             ok(f(&full["aggregate_mb_s"]) >= 500.0),
-            format!("{label}: a full cell ({} sandboxes of 0.5 vCPU), 10 × 100 MB each at once: aggregate {:.0} MB/s (target ≥ 500), per-transfer p50 {:.0} MB/s", r["full_cell_sandboxes"], f(&full["aggregate_mb_s"]), f(&full["p50_mb_s"])),
+            format!("{label}: a full cell ({} sandboxes of 0.5 vCPU, 2 GiB), 10 × 100 MB each at once: aggregate {:.0} MB/s (target ≥ 500), per-transfer p50 {:.0} MB/s", r["full_cell_sandboxes"], f(&full["aggregate_mb_s"]), f(&full["p50_mb_s"])),
         );
         checks.record(
             &format!("c8-stall-bound{tag}"),

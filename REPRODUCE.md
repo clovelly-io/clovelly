@@ -95,10 +95,11 @@ What a rebuild cannot give you:
   you build them unsigned. The signature is the only difference (in the image's EFI
   partition), and Authenticode leaves it out of RTMR1, so the measurements are the same.
   Our db, KEK and PK certificates are public in `image/secureboot/`.
-- RTMR0 and MRTD. They measure Google's firmware and our Secure Boot keys, not the
-  image. MRTD is checked against Google's signed endorsement for that firmware; RTMR0 is
-  recorded from a canary cell on each firmware, reviewed by a person against the event
-  log, and published in the release's payload (`measurements.firmware`).
+- RTMR0 and MRTD. They measure Google's firmware, the cell's machine shape and our
+  Secure Boot keys, not the image. MRTD is checked against Google's signed endorsement
+  for that firmware; RTMR0 is recorded from a canary cell on each firmware and shape,
+  reviewed by a person against the event log, and published in the release's payload
+  (`measurements.firmware`, each entry with its `machine_type`).
 - RTMR3 is zero: nothing extends it.
 
 How the images are made reproducible is in `image/DETERMINISM.md`.

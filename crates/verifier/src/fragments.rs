@@ -254,6 +254,31 @@ pub(crate) mod tests {
         assert_eq!(verify(&s, &[us.trusted()], &[log.trusted()]).unwrap().release.notice_secs, 24 * 3600);
     }
 
+    /// Phase 11 criterion 3: a release listing RTMR0 per firmware and shape accepts a quote
+    /// whose RTMR0 is the 88's (equality against any listed value); a release listing only
+    /// the 8's refuses it; `machine_type` changes nothing else.
+    #[test]
+    fn rtmr0_of_any_listed_shape_is_accepted_and_no_other() {
+        let (us, log) = (Key::new(), Key::new());
+        let with = |firmware: serde_json::Value| {
+            let mut v: serde_json::Value = serde_json::from_slice(&payload("clovelly-0.6.0", 30)).unwrap();
+            v["measurements"]["firmware"] = firmware;
+            let b = bundle(&us, &log, &common::jcs::canonical(&v).unwrap(), Window::Regular, 1_000, 9_000, vec![]);
+            verify(&b, &[us.trusted()], &[log.trusted()]).unwrap().release
+        };
+        let at = |b: u8| Measurement([b; 48]);
+        let both = with(serde_json::json!([
+            { "mrtd": m(1), "rtmr0": m(8), "machine_type": "c3-standard-8" },
+            { "mrtd": m(1), "rtmr0": m(88), "machine_type": "c3-standard-88" } ]));
+        assert!(both.accepts_rtmr0(&at(8)) && both.accepts_rtmr0(&at(88)));
+        assert!(!both.accepts_rtmr0(&at(22)));
+        assert_eq!(both.mrtd, [at(1), at(1)]);
+        let eight = with(serde_json::json!([{ "mrtd": m(1), "rtmr0": m(8), "machine_type": "c3-standard-8" }]));
+        assert!(eight.accepts_rtmr0(&at(8)) && !eight.accepts_rtmr0(&at(88)), "the 88's RTMR0 on a release listing only the 8's");
+        let old = with(serde_json::json!([{ "mrtd": m(1), "rtmr0": m(8) }]));
+        assert!(old.accepts_rtmr0(&at(8)) && !old.accepts_rtmr0(&at(88)), "a payload of today's shape verifies unchanged");
+    }
+
     /// Criterion 7: a fragment our key signed but with no Rekor inclusion proof is
     /// refused, whether the entry is missing or carries no proof.
     #[test]

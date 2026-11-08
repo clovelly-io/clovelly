@@ -28,6 +28,7 @@ use crate::phase1;
 use crate::runsc::{Bind, Bundle, Cgroups, Network, NetworkMode, Runsc, Spec};
 use common::ids::SandboxId;
 use crate::stats::{Summary, ms};
+use crate::throughput::Scope;
 use crate::tsm;
 
 const BASE_ROOTFS: &str = "/run/clovelly/base/rootfs";
@@ -69,6 +70,12 @@ pub enum Test {
     Throughput,
     /// Phase 5: the clock within 1 s of Google's NTP (chrony).
     Clock,
+    /// Phase 11 criterion 9: phase 3 criterion 8's production path alone, on a big cell.
+    ThroughputCell,
+    /// Phase 11 criterion 11a: sandboxes sharing CPUs at 1x, 3x and 4x.
+    Sharing,
+    /// Phase 11 criterion 11b: the create path's profile and variants, at `--concurrency`.
+    Profile,
 }
 
 impl std::str::FromStr for Test {
@@ -90,6 +97,9 @@ impl std::str::FromStr for Test {
             "egress" => Test::Egress,
             "throughput" => Test::Throughput,
             "clock" => Test::Clock,
+            "throughput-cell" => Test::ThroughputCell,
+            "sharing" => Test::Sharing,
+            "profile" => Test::Profile,
             other => bail!("unknown test {other:?}"),
         })
     }
@@ -177,6 +187,7 @@ pub fn run(cfg: &Config) -> anyhow::Result<()> {
         runsc: &runsc,
         rootfs: Path::new(BASE_ROOTFS),
         scratch: Path::new(BUNDLES),
+        sized: None,
     };
     for test in &cfg.tests {
         match test {
@@ -192,9 +203,10 @@ pub fn run(cfg: &Config) -> anyhow::Result<()> {
             Test::WrongUrl => phase1::wrong_url(&mut checks),
             Test::UnlockLatency => phase1::unlock_latency(&mut checks, &cfg.out, cfg.samples),
             Test::Egress => phase1::egress(&mut checks),
-            Test::Throughput => match cfg.peer {
+            Test::Throughput | Test::ThroughputCell => match cfg.peer {
                 Some(peer) => {
-                    let r = crate::throughput::run(&mut checks, &cfg.out, peer);
+                    let scope = if *test == Test::Throughput { Scope::Diagnose } else { Scope::Production };
+                    let r = crate::throughput::run(&mut checks, &cfg.out, peer, scope);
                     if let Err(e) = r {
                         checks.record("c8-throughput", Status::Fail, format!("{e:#}"));
                     }
@@ -202,6 +214,16 @@ pub fn run(cfg: &Config) -> anyhow::Result<()> {
                 None => checks.record("c8-throughput", Status::Fail, "needs --peer (the destination VM's IP:80)"),
             },
             Test::Clock => crate::clock::clock(&mut checks, &cfg.out),
+            Test::Sharing => {
+                if let Err(e) = crate::sharing::run(&mut checks, &cfg.out) {
+                    checks.record("c11a-sharing", Status::Fail, format!("{e:#}"));
+                }
+            }
+            Test::Profile => {
+                if let Err(e) = crate::profile::run(&mut checks, &cfg.out, &cfg.concurrency, cfg.samples) {
+                    checks.record("c11b-profile", Status::Fail, format!("{e:#}"));
+                }
+            }
         }
     }
     Ok(())
