@@ -1,6 +1,6 @@
 //! The egress proxy as its own process (criterion 13, locally): the supervisor starts
 //! the real `egress-proxy` binary, and a `kill -9` of it costs the sandbox a gap in its
-//! egress, not its CA, its credentials or the lines already logged.
+//! egress, not its CA, its credentials, the lines already logged or the egress count.
 
 use std::collections::HashMap;
 use std::net::{Ipv4Addr, SocketAddr};
@@ -64,6 +64,10 @@ async fn a_killed_proxy_comes_back_with_the_same_ca_and_the_log_records_the_gap(
     assert!(before.ends_with("ok"), "{before}");
     assert!(seen.lock().unwrap()[0].contains("Bearer REAL-SECRET\r\n"));
     until(|| sup.log(Ipv4Addr::LOCALHOST).is_some_and(|l| l.count == 1)).await;
+    // Phase 10: the egress count, reported each second. The head goes out with the
+    // placeholder (19 bytes) replaced by the secret (11).
+    let one = request.len() as u64 - 8;
+    until(|| sup.egress_bytes() == one).await;
 
     let (ca, pid) = (sup.ca_pem(), sup.pid().unwrap());
     let killed = std::process::Command::new("kill").args(["-9", &pid.to_string()]).status().unwrap();
@@ -78,6 +82,7 @@ async fn a_killed_proxy_comes_back_with_the_same_ca_and_the_log_records_the_gap(
     assert!(seen.lock().unwrap()[1].contains("Bearer REAL-SECRET\r\n"), "the credential was handed over again");
 
     until(|| sup.log(Ipv4Addr::LOCALHOST).is_some_and(|l| l.count == 2)).await;
+    until(|| sup.egress_bytes() == 2 * one).await;
     let log = sup.unregister(Ipv4Addr::LOCALHOST).await.unwrap();
     assert_eq!(log.count, 2, "the line from before the kill is kept: {:?}", log.lines);
     assert!(log.lines.iter().all(|l| l.contains(r#""credential":"svc""#) && !l.contains("REAL-SECRET")), "{:?}", log.lines);

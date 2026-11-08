@@ -39,7 +39,7 @@ mod tls;
 
 use std::collections::HashMap;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, SystemTime};
 
@@ -262,6 +262,8 @@ pub(crate) struct Shared {
     ports: Ports,
     sandboxes: RwLock<HashMap<Ipv4Addr, Arc<SandboxEgress>>>,
     connections: AtomicU32,
+    /// Bytes written toward destinations since this proxy started ([`conn::Metered`]).
+    egress_bytes: Arc<AtomicU64>,
 }
 
 impl Shared {
@@ -328,6 +330,7 @@ impl Proxy {
                 ports: cfg.ports,
                 sandboxes: RwLock::new(HashMap::new()),
                 connections: AtomicU32::new(0),
+                egress_bytes: Arc::new(AtomicU64::new(0)),
             }),
         })
     }
@@ -348,6 +351,12 @@ impl Proxy {
     /// Connections open now (the telemetry's proxy connection count).
     pub fn connections(&self) -> u32 {
         self.shared.connections.load(Ordering::Relaxed)
+    }
+
+    /// Bytes sent toward destinations, for every sandbox, since this proxy started (SPEC.md
+    /// phase 10's egress meter). Traffic of the proxy's own (its DoT lookups) is not in it.
+    pub fn egress_bytes(&self) -> u64 {
+        self.shared.egress_bytes.load(Ordering::Relaxed)
     }
 
     /// Binds the configured ports on every address and serves until a listener
@@ -909,5 +918,61 @@ mod tests {
         assert!(seen.lock().unwrap()[0].contains("Bearer clovelly://cred/svc\r\n"));
         let log = proxy.unregister(Ipv4Addr::LOCALHOST).await.unwrap();
         assert!(log.lines[0].contains(r#""result":"wildcard""#) && !log.lines[0].contains("credential"), "{:?}", log.lines);
+    }
+
+    /// Phase 10 criterion 2, on loopback: a request with a body of known size counts every
+    /// byte that reached the destination, exactly, and nothing of the larger response or of
+    /// a refused destination.
+    #[tokio::test]
+    async fn the_egress_meter_counts_what_leaves_toward_destinations() {
+        use std::sync::atomic::AtomicU64;
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let (proxy, connect) = testing::proxy(&["sink.test"]).await;
+        // A destination that counts every byte it receives, reads one request with its
+        // body, and answers with two megabytes.
+        let l = tokio::net::TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+        let port = l.local_addr().unwrap().port();
+        let received = Arc::new(AtomicU64::new(0));
+        let r2 = Arc::clone(&received);
+        tokio::spawn(async move {
+            let (mut s, _) = l.accept().await.unwrap();
+            let mut buf = Vec::new();
+            let mut chunk = vec![0u8; 65536];
+            let want = loop {
+                let n = s.read(&mut chunk).await.unwrap();
+                buf.extend_from_slice(&chunk[..n]);
+                if let Some(end) = buf.windows(4).position(|w| w == b"\r\n\r\n") {
+                    let head = String::from_utf8_lossy(&buf[..end]).to_lowercase();
+                    let len: usize = head.lines().find_map(|l| l.strip_prefix("content-length: ")).unwrap().trim().parse().unwrap();
+                    break end + 4 + len;
+                }
+            };
+            while buf.len() < want {
+                let n = s.read(&mut chunk).await.unwrap();
+                buf.extend_from_slice(&chunk[..n]);
+            }
+            r2.store(buf.len() as u64, Ordering::SeqCst);
+            let body = vec![b'r'; 2 << 20];
+            let _ = s.write_all(format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len()).as_bytes()).await;
+            let _ = s.write_all(&body).await;
+        });
+        let policy = testing::policy(&format!(r#"[{{"host":"sink.test","port":{port}}}]"#));
+        proxy.register(Ipv4Addr::LOCALHOST, SandboxEgress::new(SandboxId::generate(), policy, HashMap::new()));
+        assert_eq!(proxy.egress_bytes(), 0);
+
+        let body = "a".repeat(1_000_000);
+        let target = format!("sink.test:{port}");
+        let request = format!("POST /up HTTP/1.1\r\nHost: {target}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len());
+        let got = testing::through(connect, &target, &request).await.unwrap();
+        assert!(got.contains("200 OK"), "{}", &got[..got.len().min(200)]);
+        let denied = testing::through(connect, "elsewhere.test:443", "").await.unwrap();
+        assert!(denied.starts_with("HTTP/1.1 403"), "{denied}");
+
+        let sent = proxy.egress_bytes();
+        assert_eq!(sent, received.load(Ordering::SeqCst), "the meter counts exactly what reached the destination");
+        let off = sent.abs_diff(1_000_000) as f64 / 1_000_000.0;
+        assert!(off < 0.01, "{sent} bytes for a 1,000,000-byte body");
+        proxy.unregister(Ipv4Addr::LOCALHOST).await.unwrap();
+        assert_eq!(proxy.egress_bytes(), sent, "the count is the proxy's, not the sandbox's: it outlives it");
     }
 }

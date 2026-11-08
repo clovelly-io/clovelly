@@ -89,6 +89,7 @@ fn report(cfg: &BootConfig, r: &Reported, cpu: &mut CpuMeter) -> CellReport {
         proxy_connections: r.sandboxes.proxy_connections(),
         drain_state: (*r.drain.borrow()).into(),
         release_id: cfg.release.to_string(),
+        egress_bytes: r.sandboxes.egress_bytes(),
     }
 }
 

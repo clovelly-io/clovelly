@@ -24,7 +24,9 @@ The console checks that your verifier answers and serves your CA, creates your e
 ## 2. Turn on compute (5 minutes)
 
 On the Billing tab, add a card: no cell boots until your organization has a card on file and credit above zero
-([billing.md](billing.md)). On the Settings tab, add your sub-environment `main` and its pool, and choose the pool's region:
+([billing.md](billing.md)). Adding the card charges the environment fee, $49.00, as credit for the billing period, and
+more credit comes in top-ups of at least $100.00. A cell-hour costs $0.95 to $1.20 by region, and egress beyond 10 GB per
+cell-hour costs $0.15 per GB ([pricing.md](pricing.md)). On the Settings tab, add your sub-environment `main` and its pool, and choose the pool's region:
 `us-central1`, `us-east4`, `us-west1`, `europe-west4` or `asia-southeast1`. The region is where its sandboxes run and where their traffic leaves
 from, and it is set once ([regions.md](regions.md) says what it does not decide). The pool's defaults boot nothing until
 a sandbox asks for a cell.

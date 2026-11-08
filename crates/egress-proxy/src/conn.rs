@@ -24,6 +24,7 @@
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::pin::Pin;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::task::{Context, Poll};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -164,9 +165,40 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for Prefixed<S> {
     }
 }
 
+/// A destination connection that adds every byte written to it to the proxy's egress
+/// counter (SPEC.md phase 10): what leaves the cell toward a destination, TLS records and
+/// handshakes included, counted where it is written. Nothing a sandbox reaches holds the
+/// counter.
+pub(crate) struct Metered {
+    inner: TcpStream,
+    sent: Arc<AtomicU64>,
+}
+
+impl AsyncRead for Metered {
+    fn poll_read(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<std::io::Result<()>> {
+        Pin::new(&mut self.inner).poll_read(cx, buf)
+    }
+}
+
+impl AsyncWrite for Metered {
+    fn poll_write(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<std::io::Result<usize>> {
+        let polled = Pin::new(&mut self.inner).poll_write(cx, buf);
+        if let Poll::Ready(Ok(n)) = polled {
+            self.sent.fetch_add(n as u64, Ordering::Relaxed);
+        }
+        polled
+    }
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        Pin::new(&mut self.inner).poll_flush(cx)
+    }
+    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        Pin::new(&mut self.inner).poll_shutdown(cx)
+    }
+}
+
 /// Relays bytes both ways until both directions end (a passthrough destination), adding
 /// the bytes each way to `line` even when one side resets.
-async fn splice(client: TcpStream, upstream: TcpStream, line: &mut Line) {
+async fn splice(client: TcpStream, upstream: Metered, line: &mut Line) {
     async fn one_way(mut r: impl AsyncRead + Unpin, mut w: impl AsyncWrite + Unpin) -> (u64, Option<String>) {
         let mut buf = vec![0u8; http::BUF];
         let mut n = 0u64;
@@ -190,7 +222,7 @@ async fn splice(client: TcpStream, upstream: TcpStream, line: &mut Line) {
         }
     }
     let (cr, cw) = client.into_split();
-    let (ur, uw) = upstream.into_split();
+    let (ur, uw) = tokio::io::split(upstream);
     let ((up, e1), (down, e2)) = tokio::join!(one_way(cr, uw), one_way(ur, cw));
     line.up += up;
     line.down += down;
@@ -201,7 +233,7 @@ async fn splice(client: TcpStream, upstream: TcpStream, line: &mut Line) {
 
 /// Connects to `host:port`, resolved by the proxy and only to addresses the guard
 /// permits.
-async fn upstream(shared: &Shared, egress: &SandboxEgress, host: &Host, port: u16) -> Result<TcpStream, String> {
+async fn upstream(shared: &Shared, egress: &SandboxEgress, host: &Host, port: u16) -> Result<Metered, String> {
     let ips: Vec<Ipv4Addr> = match host {
         Host::Ip(ip) => vec![*ip],
         Host::Name(n) => match shared.dns.lookup(n, &egress.policy.resolvers()).await {
@@ -219,7 +251,7 @@ async fn upstream(shared: &Shared, egress: &SandboxEgress, host: &Host, port: u1
         match tokio::time::timeout(CONNECT_TIMEOUT, TcpStream::connect(SocketAddr::from((ip, port)))).await {
             Ok(Ok(s)) => {
                 let _ = s.set_nodelay(true);
-                return Ok(s);
+                return Ok(Metered { inner: s, sent: Arc::clone(&shared.egress_bytes) });
             }
             Ok(Err(e)) => last = format!("{ip}: {e}"),
             Err(_) => last = format!("{ip}: connect timed out"),

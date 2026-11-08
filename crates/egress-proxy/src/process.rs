@@ -187,7 +187,7 @@ async fn count_connections(proxy: Proxy, events: mpsc::UnboundedSender<FromProxy
     let mut every = tokio::time::interval(Duration::from_secs(1));
     loop {
         every.tick().await;
-        if events.send(FromProxy::Connections { count: proxy.connections() }).is_err() {
+        if events.send(FromProxy::Connections { count: proxy.connections(), egress_bytes: proxy.egress_bytes() }).is_err() {
             return;
         }
     }

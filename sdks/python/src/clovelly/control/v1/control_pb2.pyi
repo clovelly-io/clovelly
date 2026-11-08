@@ -31,6 +31,7 @@ class ErrorReason(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     SIGN_UP_CLOSED: _ClassVar[ErrorReason]
     NO_CAPACITY: _ClassVar[ErrorReason]
     UNKNOWN_REGION: _ClassVar[ErrorReason]
+    BELOW_MINIMUM_TOP_UP: _ClassVar[ErrorReason]
 
 class DrainState(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
@@ -60,6 +61,7 @@ NOT_READY: ErrorReason
 SIGN_UP_CLOSED: ErrorReason
 NO_CAPACITY: ErrorReason
 UNKNOWN_REGION: ErrorReason
+BELOW_MINIMUM_TOP_UP: ErrorReason
 DRAIN_STATE_UNSPECIFIED: DrainState
 SERVING: DrainState
 DRAINING: DrainState
@@ -281,7 +283,7 @@ class CellUsage(_message.Message):
     def __init__(self, cell_id: _Optional[str] = ..., create_called_unix_ms: _Optional[int] = ..., deleted_unix_ms: _Optional[int] = ..., cell_minutes: _Optional[float] = ...) -> None: ...
 
 class CellReport(_message.Message):
-    __slots__ = ("instance_id", "zone", "ready", "unreserved_cpu_halves", "unreserved_memory_gib", "sandbox_count", "cpu_in_use_millis", "memory_in_use_bytes", "lease_expiry_unix", "proxy_connections", "drain_state", "release_id")
+    __slots__ = ("instance_id", "zone", "ready", "unreserved_cpu_halves", "unreserved_memory_gib", "sandbox_count", "cpu_in_use_millis", "memory_in_use_bytes", "lease_expiry_unix", "proxy_connections", "drain_state", "release_id", "egress_bytes")
     INSTANCE_ID_FIELD_NUMBER: _ClassVar[int]
     ZONE_FIELD_NUMBER: _ClassVar[int]
     READY_FIELD_NUMBER: _ClassVar[int]
@@ -294,6 +296,7 @@ class CellReport(_message.Message):
     PROXY_CONNECTIONS_FIELD_NUMBER: _ClassVar[int]
     DRAIN_STATE_FIELD_NUMBER: _ClassVar[int]
     RELEASE_ID_FIELD_NUMBER: _ClassVar[int]
+    EGRESS_BYTES_FIELD_NUMBER: _ClassVar[int]
     instance_id: int
     zone: str
     ready: bool
@@ -306,7 +309,8 @@ class CellReport(_message.Message):
     proxy_connections: int
     drain_state: DrainState
     release_id: str
-    def __init__(self, instance_id: _Optional[int] = ..., zone: _Optional[str] = ..., ready: bool = ..., unreserved_cpu_halves: _Optional[int] = ..., unreserved_memory_gib: _Optional[int] = ..., sandbox_count: _Optional[int] = ..., cpu_in_use_millis: _Optional[int] = ..., memory_in_use_bytes: _Optional[int] = ..., lease_expiry_unix: _Optional[int] = ..., proxy_connections: _Optional[int] = ..., drain_state: _Optional[_Union[DrainState, str]] = ..., release_id: _Optional[str] = ...) -> None: ...
+    egress_bytes: int
+    def __init__(self, instance_id: _Optional[int] = ..., zone: _Optional[str] = ..., ready: bool = ..., unreserved_cpu_halves: _Optional[int] = ..., unreserved_memory_gib: _Optional[int] = ..., sandbox_count: _Optional[int] = ..., cpu_in_use_millis: _Optional[int] = ..., memory_in_use_bytes: _Optional[int] = ..., lease_expiry_unix: _Optional[int] = ..., proxy_connections: _Optional[int] = ..., drain_state: _Optional[_Union[DrainState, str]] = ..., release_id: _Optional[str] = ..., egress_bytes: _Optional[int] = ...) -> None: ...
 
 class CellReportAck(_message.Message):
     __slots__ = ()
@@ -559,16 +563,22 @@ class BilledCell(_message.Message):
     def __init__(self, subenv_id: _Optional[str] = ..., cell_id: _Optional[str] = ..., machine_type: _Optional[str] = ..., zone: _Optional[str] = ..., create_called_unix_ms: _Optional[int] = ..., deleted_unix_ms: _Optional[int] = ..., billed_ms: _Optional[int] = ...) -> None: ...
 
 class BilledSubenv(_message.Message):
-    __slots__ = ("subenv_id", "billed_ms", "cents", "region")
+    __slots__ = ("subenv_id", "billed_ms", "cents", "region", "egress_bytes", "egress_billed_bytes", "egress_cents")
     SUBENV_ID_FIELD_NUMBER: _ClassVar[int]
     BILLED_MS_FIELD_NUMBER: _ClassVar[int]
     CENTS_FIELD_NUMBER: _ClassVar[int]
     REGION_FIELD_NUMBER: _ClassVar[int]
+    EGRESS_BYTES_FIELD_NUMBER: _ClassVar[int]
+    EGRESS_BILLED_BYTES_FIELD_NUMBER: _ClassVar[int]
+    EGRESS_CENTS_FIELD_NUMBER: _ClassVar[int]
     subenv_id: str
     billed_ms: int
     cents: int
     region: str
-    def __init__(self, subenv_id: _Optional[str] = ..., billed_ms: _Optional[int] = ..., cents: _Optional[int] = ..., region: _Optional[str] = ...) -> None: ...
+    egress_bytes: int
+    egress_billed_bytes: int
+    egress_cents: int
+    def __init__(self, subenv_id: _Optional[str] = ..., billed_ms: _Optional[int] = ..., cents: _Optional[int] = ..., region: _Optional[str] = ..., egress_bytes: _Optional[int] = ..., egress_billed_bytes: _Optional[int] = ..., egress_cents: _Optional[int] = ...) -> None: ...
 
 class OffboardRequest(_message.Message):
     __slots__ = ("env_id",)
@@ -842,16 +852,20 @@ class GetDailyUsageRequest(_message.Message):
     def __init__(self, env_id: _Optional[str] = ..., month: _Optional[str] = ...) -> None: ...
 
 class DailyUsageRow(_message.Message):
-    __slots__ = ("day", "subenv_id", "cell_minutes", "region")
+    __slots__ = ("day", "subenv_id", "cell_minutes", "region", "egress_bytes", "egress_billed_bytes")
     DAY_FIELD_NUMBER: _ClassVar[int]
     SUBENV_ID_FIELD_NUMBER: _ClassVar[int]
     CELL_MINUTES_FIELD_NUMBER: _ClassVar[int]
     REGION_FIELD_NUMBER: _ClassVar[int]
+    EGRESS_BYTES_FIELD_NUMBER: _ClassVar[int]
+    EGRESS_BILLED_BYTES_FIELD_NUMBER: _ClassVar[int]
     day: str
     subenv_id: str
     cell_minutes: float
     region: str
-    def __init__(self, day: _Optional[str] = ..., subenv_id: _Optional[str] = ..., cell_minutes: _Optional[float] = ..., region: _Optional[str] = ...) -> None: ...
+    egress_bytes: int
+    egress_billed_bytes: int
+    def __init__(self, day: _Optional[str] = ..., subenv_id: _Optional[str] = ..., cell_minutes: _Optional[float] = ..., region: _Optional[str] = ..., egress_bytes: _Optional[int] = ..., egress_billed_bytes: _Optional[int] = ...) -> None: ...
 
 class DailySandboxes(_message.Message):
     __slots__ = ("day", "peak_concurrent")
@@ -862,14 +876,18 @@ class DailySandboxes(_message.Message):
     def __init__(self, day: _Optional[str] = ..., peak_concurrent: _Optional[int] = ...) -> None: ...
 
 class DailyUsage(_message.Message):
-    __slots__ = ("rows", "sandboxes", "total_cents")
+    __slots__ = ("rows", "sandboxes", "total_cents", "cell_cents", "egress_cents")
     ROWS_FIELD_NUMBER: _ClassVar[int]
     SANDBOXES_FIELD_NUMBER: _ClassVar[int]
     TOTAL_CENTS_FIELD_NUMBER: _ClassVar[int]
+    CELL_CENTS_FIELD_NUMBER: _ClassVar[int]
+    EGRESS_CENTS_FIELD_NUMBER: _ClassVar[int]
     rows: _containers.RepeatedCompositeFieldContainer[DailyUsageRow]
     sandboxes: _containers.RepeatedCompositeFieldContainer[DailySandboxes]
     total_cents: int
-    def __init__(self, rows: _Optional[_Iterable[_Union[DailyUsageRow, _Mapping]]] = ..., sandboxes: _Optional[_Iterable[_Union[DailySandboxes, _Mapping]]] = ..., total_cents: _Optional[int] = ...) -> None: ...
+    cell_cents: int
+    egress_cents: int
+    def __init__(self, rows: _Optional[_Iterable[_Union[DailyUsageRow, _Mapping]]] = ..., sandboxes: _Optional[_Iterable[_Union[DailySandboxes, _Mapping]]] = ..., total_cents: _Optional[int] = ..., cell_cents: _Optional[int] = ..., egress_cents: _Optional[int] = ...) -> None: ...
 
 class ApiKey(_message.Message):
     __slots__ = ("key_id", "env_id", "name", "role", "prefix", "created_by", "created_unix_ms", "revoked_unix_ms", "last_used_unix_ms")
@@ -1042,7 +1060,7 @@ class Charge(_message.Message):
     def __init__(self, kind: _Optional[str] = ..., amount_cents: _Optional[int] = ..., status: _Optional[str] = ..., pay_url: _Optional[str] = ..., created_unix_ms: _Optional[int] = ..., failed_unix_ms: _Optional[int] = ..., paid_unix_ms: _Optional[int] = ...) -> None: ...
 
 class Billing(_message.Message):
-    __slots__ = ("balance_cents", "balance_unix_ms", "credits", "charges", "card_on_file", "card_summary", "period_start_unix_ms", "period_end_unix_ms", "environment_fee_cents", "low_balance_cents", "recharge_cents", "paused")
+    __slots__ = ("balance_cents", "balance_unix_ms", "credits", "charges", "card_on_file", "card_summary", "period_start_unix_ms", "period_end_unix_ms", "environment_fee_cents", "low_balance_cents", "recharge_cents", "paused", "top_up_min_cents")
     BALANCE_CENTS_FIELD_NUMBER: _ClassVar[int]
     BALANCE_UNIX_MS_FIELD_NUMBER: _ClassVar[int]
     CREDITS_FIELD_NUMBER: _ClassVar[int]
@@ -1055,6 +1073,7 @@ class Billing(_message.Message):
     LOW_BALANCE_CENTS_FIELD_NUMBER: _ClassVar[int]
     RECHARGE_CENTS_FIELD_NUMBER: _ClassVar[int]
     PAUSED_FIELD_NUMBER: _ClassVar[int]
+    TOP_UP_MIN_CENTS_FIELD_NUMBER: _ClassVar[int]
     balance_cents: int
     balance_unix_ms: int
     credits: _containers.RepeatedCompositeFieldContainer[CreditGrant]
@@ -1067,7 +1086,8 @@ class Billing(_message.Message):
     low_balance_cents: int
     recharge_cents: int
     paused: str
-    def __init__(self, balance_cents: _Optional[int] = ..., balance_unix_ms: _Optional[int] = ..., credits: _Optional[_Iterable[_Union[CreditGrant, _Mapping]]] = ..., charges: _Optional[_Iterable[_Union[Charge, _Mapping]]] = ..., card_on_file: bool = ..., card_summary: _Optional[str] = ..., period_start_unix_ms: _Optional[int] = ..., period_end_unix_ms: _Optional[int] = ..., environment_fee_cents: _Optional[int] = ..., low_balance_cents: _Optional[int] = ..., recharge_cents: _Optional[int] = ..., paused: _Optional[str] = ...) -> None: ...
+    top_up_min_cents: int
+    def __init__(self, balance_cents: _Optional[int] = ..., balance_unix_ms: _Optional[int] = ..., credits: _Optional[_Iterable[_Union[CreditGrant, _Mapping]]] = ..., charges: _Optional[_Iterable[_Union[Charge, _Mapping]]] = ..., card_on_file: bool = ..., card_summary: _Optional[str] = ..., period_start_unix_ms: _Optional[int] = ..., period_end_unix_ms: _Optional[int] = ..., environment_fee_cents: _Optional[int] = ..., low_balance_cents: _Optional[int] = ..., recharge_cents: _Optional[int] = ..., paused: _Optional[str] = ..., top_up_min_cents: _Optional[int] = ...) -> None: ...
 
 class GetBillingRequest(_message.Message):
     __slots__ = ()

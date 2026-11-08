@@ -272,6 +272,7 @@ None), `.code` (the gRPC status code name) and `.details`.
 | `QUOTA_EXCEEDED` | `QuotaExceeded` | control plane |
 | `NO_CAPACITY` | `NoCapacity` (`.region`, `.retry_after` seconds) | control plane |
 | `UNKNOWN_REGION` | `UnknownRegion` (`.regions`, the published list) | control plane |
+| `BELOW_MINIMUM_TOP_UP` | `InvalidRequest` (credit is bought in the console) | control plane |
 | `STORAGE` | `StorageUnavailable` | control plane |
 | `NO_SUCH_TEMPLATE` | `NoSuchTemplate` | control plane |
 

@@ -292,6 +292,7 @@ Each `ErrorReason` in `cell.proto` and `control.proto` has its own subclass:
 | `QUOTA_EXCEEDED` | `QuotaExceeded` |
 | `NO_CAPACITY` | `NoCapacity` (`region`, `retryAfter` seconds) |
 | `UNKNOWN_REGION` | `UnknownRegion` (`regions`, the published list) |
+| `BELOW_MINIMUM_TOP_UP` | `InvalidRequest` (credit is bought in the console) |
 | `POLICY_REFUSED` | `PolicyRefused` |
 | `CREDENTIAL_UNAVAILABLE` | `CredentialUnavailable` |
 | `STORAGE` | `StorageUnavailable` |

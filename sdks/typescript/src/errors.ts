@@ -228,6 +228,8 @@ const BY_REASON = {
   CREDIT_EXHAUSTED: CreditExhausted,
   NOT_READY: ControlPlaneUnavailable,
   SIGN_UP_CLOSED: PermissionDenied,
+  // Buying credit is the console's; an SDK sees it only as a bad request.
+  BELOW_MINIMUM_TOP_UP: InvalidRequest,
   CELL_CREATE_FAILED: CellCreateFailed,
   STORAGE: StorageUnavailable,
   NO_SUCH_TEMPLATE: NoSuchTemplate,

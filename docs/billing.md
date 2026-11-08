@@ -1,8 +1,6 @@
 <!-- Generated from the price book by `clovelly-admin pages`. Do not edit by hand. -->
 # Billing
 
-> **These are staging figures for testing the billing mechanism. They are not Clovelly's prices; the prices are set before any organization outside staging exists.**
-
 Clovelly is prepaid: usage comes out of a balance of credit, and we are paid before a cell boots.
 
 ## A card before the first cell
@@ -14,7 +12,7 @@ Signing up, the console, deploying your verifier and creating an environment are
 Three kinds, drawn soonest-expiring first:
 
 - **Period credit**: the environment fee, charged when your card goes on file and at the start of each billing period. It pays only for that period and expires when it ends.
-- **Bought credit**: top-ups and auto-recharge, at least $10.00, expiring 12 months after payment. It is never refunded.
+- **Bought credit**: top-ups and auto-recharge, at least $100.00, expiring 12 months after payment. It is never refunded.
 - **Operator credit**: granted by us, expiring 12 months after it is granted.
 
 A billing period runs from the UTC day your card went on file to the same day the next month, with no proration. Every charge is one Stripe invoice paid at once; there is no invoice at the end of a period. Receipts are in Stripe's portal, reached from the Billing tab.
@@ -31,4 +29,4 @@ A failed environment fee pauses placements 72 hours after the failure, until it 
 
 ## Your usage
 
-The Usage tab shows cell-minutes by sub-environment, its region and day, and exports the month's bill as CSV. `ExportBilling` returns the same bill through the API, and credit is drawn from exactly that bill, to the cent.
+The Usage tab shows cell-minutes and egress by sub-environment, its region and day, and the month's cell-minutes, egress and environment fee as separate lines; it exports the month's bill as CSV. Egress is billed per GB beyond the allowance of 10 GB per cell-hour, at $0.15 ([pricing.md](pricing.md)). `ExportBilling` returns the same bill through the API, and credit is drawn from exactly that bill, to the cent.

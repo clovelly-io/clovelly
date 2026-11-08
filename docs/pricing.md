@@ -1,8 +1,6 @@
 <!-- Generated from the price book by `clovelly-admin pages`. Do not edit by hand. -->
 # Pricing
 
-> **These are staging figures for testing the billing mechanism. They are not Clovelly's prices; the prices are set before any organization outside staging exists.**
-
 Clovelly bills cell-minutes: every minute from the moment we ask for a cell to the moment it is deleted, whatever ran on it. Nothing is billed per sandbox or per vCPU-second, because a cell is a dedicated confidential VM that runs only your sandboxes. What you pay is set by the settings you hold: the region, warm cells per zone, the idle window, sandbox sizes and timeouts.
 
 ## Cells
@@ -11,21 +9,27 @@ A cell-hour costs what its region costs: the region of the sub-environment it ru
 
 | Region | Machine type | Per cell-hour |
 |---|---|---|
-| `asia-southeast1` | `c3-standard-22` | $2.04 |
-| `asia-southeast1` | `c3-standard-8` | $0.74 |
-| `europe-west4` | `c3-standard-22` | $1.82 |
-| `europe-west4` | `c3-standard-8` | $0.66 |
-| `us-central1` | `c3-standard-22` | $1.65 |
-| `us-central1` | `c3-standard-8` | $0.60 |
-| `us-east4` | `c3-standard-22` | $1.84 |
-| `us-east4` | `c3-standard-8` | $0.67 |
-| `us-west1` | `c3-standard-22` | $1.65 |
-| `us-west1` | `c3-standard-8` | $0.60 |
+| `asia-southeast1` | `c3-standard-22` | $3.30 |
+| `asia-southeast1` | `c3-standard-8` | $1.20 |
+| `europe-west4` | `c3-standard-22` | $2.8875 |
+| `europe-west4` | `c3-standard-8` | $1.05 |
+| `us-central1` | `c3-standard-22` | $2.6125 |
+| `us-central1` | `c3-standard-8` | $0.95 |
+| `us-east4` | `c3-standard-22` | $2.8875 |
+| `us-east4` | `c3-standard-8` | $1.05 |
+| `us-west1` | `c3-standard-22` | $2.8875 |
+| `us-west1` | `c3-standard-8` | $1.05 |
+
+## Egress
+
+What your sandboxes send out of a cell is metered: the egress proxy counts every byte it sends toward a destination your policy allows, inside the cell, where no sandbox can see or change the count. Responses coming back are not counted, and neither is the cell's own traffic to your verifier and to us.
+
+Each cell-hour includes 10 GB, pooled across a sub-environment's cells for each UTC day. Beyond that, egress is $0.15 per GB (10^9 bytes), billed at the end of the day with the day's cell-minutes. A sub-environment that ran 24 cell-hours in a day sends 240 GB that day before any traffic is billed.
 
 ## Environment fee
 
-$20.00 per environment per billing period, charged to your card at the start of the period and given to you as credit that pays for that period's cells. So a period costs the larger of the fee and your usage.
+$49.00 per environment per billing period, charged to your card at the start of the period and given to you as credit that pays for that period's cells and egress. So a period costs the larger of the fee and your usage. More credit is bought in top-ups of at least $100.00.
 
-One plan. Enterprise is a conversation: write to us.
+One plan, no free tier and no trial. Enterprise is a conversation: write to us.
 
 See [billing.md](billing.md) for how credit works and [limits.md](limits.md) for the limits.

@@ -131,6 +131,9 @@ enum ErrorReason {
   NO_CAPACITY = 20;
   // INVALID_ARGUMENT: a region not in the published list; "clovelly-regions" is the list.
   UNKNOWN_REGION = 21;
+  // INVALID_ARGUMENT: credit bought, or an auto-recharge amount, under the price book's
+  // minimum top-up; "clovelly-minimum-cents" is the minimum.
+  BELOW_MINIMUM_TOP_UP = 22;
 }
 
 message PutEnvironmentRequest {
@@ -308,6 +311,11 @@ message CellReport {
   uint32 proxy_connections = 10;
   DrainState drain_state = 11;
   string release_id = 12;
+  // Bytes the cell's sandboxes have sent out of the cell toward destinations since it
+  // unlocked, for its sub-environment: counted by the egress proxy, cumulative, so a missed
+  // report loses nothing. Responses, and traffic to the verifier and the control plane, are
+  // not in it.
+  uint64 egress_bytes = 13;
 }
 
 message CellReportAck {}
@@ -465,7 +473,7 @@ message BillingExport {
   repeated BilledCell cells = 3;
   repeated BilledSubenv subenvs = 4;
   uint64 billed_ms = 5;
-  // The sum of subenvs' cents.
+  // The sum of subenvs' cents and egress_cents.
   uint64 total_cents = 6;
 }
 
@@ -487,6 +495,15 @@ message BilledSubenv {
   // rounded half up once per sub-environment.
   uint64 cents = 3;
   string region = 4;
+  // Bytes its sandboxes sent out of its cells in the month.
+  uint64 egress_bytes = 5;
+  // Of those, the bytes beyond each day's allowance (the price book's allowance per
+  // cell-hour times the day's cell-hours, pooled across the sub-environment's cells), summed
+  // over the month's finished days.
+  uint64 egress_billed_bytes = 6;
+  // egress_billed_bytes at the price book's rate per GB (10^9 bytes), rounded half up once
+  // per sub-environment.
+  uint64 egress_cents = 7;
 }
 
 message OffboardRequest {
@@ -720,6 +737,10 @@ message DailyUsageRow {
   double cell_minutes = 3;
   // Where the sub-environment's cells ran.
   string region = 4;
+  // Bytes its sandboxes sent out of its cells that day, and those beyond the day's
+  // allowance (billed once the day is over).
+  uint64 egress_bytes = 5;
+  uint64 egress_billed_bytes = 6;
 }
 message DailySandboxes {
   string day = 1;
@@ -728,8 +749,10 @@ message DailySandboxes {
 message DailyUsage {
   repeated DailyUsageRow rows = 1;
   repeated DailySandboxes sandboxes = 2;
-  // What the month's export bills, to the cent.
+  // What the month's export bills, to the cent: cell_cents plus egress_cents.
   uint64 total_cents = 3;
+  uint64 cell_cents = 4;
+  uint64 egress_cents = 5;
 }
 
 message ApiKey {
@@ -839,6 +862,8 @@ message Billing {
   int64 recharge_cents = 11;
   // As in Org.paused.
   string paused = 12;
+  // The least a top-up or an auto-recharge can be (BELOW_MINIMUM_TOP_UP).
+  int64 top_up_min_cents = 13;
 }
 message GetBillingRequest {}
 message CardSetupRequest {

@@ -515,6 +515,13 @@ impl Sandboxes {
         self.egress.as_ref().map_or(0, |e| e.proxy.connections())
     }
 
+    /// Bytes the proxy has sent toward destinations since the cell unlocked (telemetry, and
+    /// what egress is billed from: SPEC.md phase 10). A cell serves one sub-environment, so
+    /// this is that sub-environment's count. 0 on a cell with no egress.
+    pub fn egress_bytes(&self) -> u64 {
+        self.egress.as_ref().map_or(0, |e| e.proxy.egress_bytes())
+    }
+
     /// Admits and starts a sandbox under `policy` (the bundle in force now, which the
     /// sandbox keeps for its life) with the credentials released for it.
     pub async fn create(

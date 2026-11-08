@@ -250,6 +250,12 @@ pub struct CellReport {
     pub drain_state: i32,
     #[prost(string, tag = "12")]
     pub release_id: ::prost::alloc::string::String,
+    /// Bytes the cell's sandboxes have sent out of the cell toward destinations since it
+    /// unlocked, for its sub-environment: counted by the egress proxy, cumulative, so a missed
+    /// report loses nothing. Responses, and traffic to the verifier and the control plane, are
+    /// not in it.
+    #[prost(uint64, tag = "13")]
+    pub egress_bytes: u64,
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct CellReportAck {}
@@ -476,7 +482,7 @@ pub struct BillingExport {
     pub subenvs: ::prost::alloc::vec::Vec<BilledSubenv>,
     #[prost(uint64, tag = "5")]
     pub billed_ms: u64,
-    /// The sum of subenvs' cents.
+    /// The sum of subenvs' cents and egress_cents.
     #[prost(uint64, tag = "6")]
     pub total_cents: u64,
 }
@@ -510,6 +516,18 @@ pub struct BilledSubenv {
     pub cents: u64,
     #[prost(string, tag = "4")]
     pub region: ::prost::alloc::string::String,
+    /// Bytes its sandboxes sent out of its cells in the month.
+    #[prost(uint64, tag = "5")]
+    pub egress_bytes: u64,
+    /// Of those, the bytes beyond each day's allowance (the price book's allowance per
+    /// cell-hour times the day's cell-hours, pooled across the sub-environment's cells), summed
+    /// over the month's finished days.
+    #[prost(uint64, tag = "6")]
+    pub egress_billed_bytes: u64,
+    /// egress_billed_bytes at the price book's rate per GB (10^9 bytes), rounded half up once
+    /// per sub-environment.
+    #[prost(uint64, tag = "7")]
+    pub egress_cents: u64,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct OffboardRequest {
@@ -776,6 +794,12 @@ pub struct DailyUsageRow {
     /// Where the sub-environment's cells ran.
     #[prost(string, tag = "4")]
     pub region: ::prost::alloc::string::String,
+    /// Bytes its sandboxes sent out of its cells that day, and those beyond the day's
+    /// allowance (billed once the day is over).
+    #[prost(uint64, tag = "5")]
+    pub egress_bytes: u64,
+    #[prost(uint64, tag = "6")]
+    pub egress_billed_bytes: u64,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct DailySandboxes {
@@ -790,9 +814,13 @@ pub struct DailyUsage {
     pub rows: ::prost::alloc::vec::Vec<DailyUsageRow>,
     #[prost(message, repeated, tag = "2")]
     pub sandboxes: ::prost::alloc::vec::Vec<DailySandboxes>,
-    /// What the month's export bills, to the cent.
+    /// What the month's export bills, to the cent: cell_cents plus egress_cents.
     #[prost(uint64, tag = "3")]
     pub total_cents: u64,
+    #[prost(uint64, tag = "4")]
+    pub cell_cents: u64,
+    #[prost(uint64, tag = "5")]
+    pub egress_cents: u64,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ApiKey {
@@ -979,6 +1007,9 @@ pub struct Billing {
     /// As in Org.paused.
     #[prost(string, tag = "12")]
     pub paused: ::prost::alloc::string::String,
+    /// The least a top-up or an auto-recharge can be (BELOW_MINIMUM_TOP_UP).
+    #[prost(int64, tag = "13")]
+    pub top_up_min_cents: i64,
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct GetBillingRequest {}
@@ -1068,6 +1099,9 @@ pub enum ErrorReason {
     NoCapacity = 20,
     /// INVALID_ARGUMENT: a region not in the published list; "clovelly-regions" is the list.
     UnknownRegion = 21,
+    /// INVALID_ARGUMENT: credit bought, or an auto-recharge amount, under the price book's
+    /// minimum top-up; "clovelly-minimum-cents" is the minimum.
+    BelowMinimumTopUp = 22,
 }
 impl ErrorReason {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -1098,6 +1132,7 @@ impl ErrorReason {
             Self::SignUpClosed => "SIGN_UP_CLOSED",
             Self::NoCapacity => "NO_CAPACITY",
             Self::UnknownRegion => "UNKNOWN_REGION",
+            Self::BelowMinimumTopUp => "BELOW_MINIMUM_TOP_UP",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -1125,6 +1160,7 @@ impl ErrorReason {
             "SIGN_UP_CLOSED" => Some(Self::SignUpClosed),
             "NO_CAPACITY" => Some(Self::NoCapacity),
             "UNKNOWN_REGION" => Some(Self::UnknownRegion),
+            "BELOW_MINIMUM_TOP_UP" => Some(Self::BelowMinimumTopUp),
             _ => None,
         }
     }

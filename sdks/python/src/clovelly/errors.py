@@ -367,6 +367,8 @@ _CONTROL_REASONS: _ErrorTable = {
     "CREDIT_EXHAUSTED": CreditExhausted,
     "NOT_READY": ControlPlaneUnavailable,
     "SIGN_UP_CLOSED": PermissionDenied,
+    # Buying credit is the console's; an SDK sees it only as a bad request.
+    "BELOW_MINIMUM_TOP_UP": InvalidRequest,
     # Built with their trailers by _from_rpc.
     "NO_CAPACITY": NoCapacity,
     "UNKNOWN_REGION": UnknownRegion,

@@ -17,7 +17,8 @@
 //! [`FromProxy::Ready`] (the answer to Hello), [`FromProxy::Registered`] or
 //! [`FromProxy::Refused`] (to Register), [`FromProxy::Log`] for every log line,
 //! [`FromProxy::Unregistered`] (to Unregister, after the sandbox's connections have
-//! ended and their lines were sent) and [`FromProxy::Connections`] every second.
+//! ended and their lines were sent) and [`FromProxy::Connections`] every second, which also
+//! carries the process's egress byte count.
 //!
 //! Nothing in the protocol carries a DEK, the cell key or anything derived from them:
 //! the proxy process holds only the CA key, the policies, and the credentials released
@@ -138,8 +139,9 @@ pub enum FromProxy {
     Log { ip: Ipv4Addr, sandbox: String, line: String },
     /// The sandbox at `ip` is no longer served and every line of it has been sent.
     Unregistered { ip: Ipv4Addr, sandbox: String },
-    /// Connections open now.
-    Connections { count: u32 },
+    /// Connections open now, and bytes sent toward destinations since this process
+    /// started ([`crate::Proxy::egress_bytes`]).
+    Connections { count: u32, egress_bytes: u64 },
 }
 
 /// A frame's secret part: exactly its size, never reallocated, wiped on drop.
@@ -255,14 +257,14 @@ mod tests {
     async fn frames_round_trip_with_their_secret_part() {
         let mut wire = Vec::new();
         write(&mut wire, &hello(), b"\x00KEY\xffmaterial").await.unwrap();
-        write(&mut wire, &FromProxy::Connections { count: 7 }, &[]).await.unwrap();
+        write(&mut wire, &FromProxy::Connections { count: 7, egress_bytes: 1 << 40 }, &[]).await.unwrap();
         assert!(wire.windows(13).any(|w| w == b"\x00KEY\xffmaterial"), "raw, not JSON-escaped");
         let mut r = wire.as_slice();
         let (msg, secret) = read::<_, ToProxy>(&mut r).await.unwrap().unwrap();
         assert!(matches!(msg, ToProxy::Hello { ref cell, ports: Ports::CELL, .. } if cell == "cell-1"));
         assert_eq!(secret.as_slice(), b"\x00KEY\xffmaterial");
         let (msg, secret) = read::<_, FromProxy>(&mut r).await.unwrap().unwrap();
-        assert_eq!((msg, secret.len()), (FromProxy::Connections { count: 7 }, 0));
+        assert_eq!((msg, secret.len()), (FromProxy::Connections { count: 7, egress_bytes: 1 << 40 }, 0));
         assert!(read::<_, FromProxy>(&mut r).await.unwrap().is_none(), "a clean end");
     }
 

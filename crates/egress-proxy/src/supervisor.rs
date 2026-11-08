@@ -25,7 +25,7 @@
 //!
 //! The DEK never reaches the proxy process: no message carries it ([`crate::ipc`]).
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::net::Ipv4Addr;
 use std::path::PathBuf;
 use std::process::Stdio;
@@ -225,8 +225,14 @@ pub struct Supervisor {
     own: Mutex<Vec<Ipv4Addr>>,
     pid: AtomicU32,
     connections: AtomicU32,
+    /// Each proxy process's last egress byte count, by generation: each counts from zero,
+    /// and a late report from a dead process still counts. Bytes a process sent after its
+    /// last report (at most a second's) die with it.
+    egress: Mutex<BTreeMap<u64, u64>>,
     restarts: AtomicU32,
 }
+
+
 
 impl Supervisor {
     /// Generates the in-cell CA, starts the proxy process and waits until it serves.
@@ -243,6 +249,7 @@ impl Supervisor {
             own: Mutex::new(Vec::new()),
             pid: AtomicU32::new(0),
             connections: AtomicU32::new(0),
+            egress: Mutex::new(BTreeMap::new()),
             restarts: AtomicU32::new(0),
         });
         let (child, stdin, stdout) = sup.spawn().await?;
@@ -265,6 +272,13 @@ impl Supervisor {
     /// last reported it.
     pub fn connections(&self) -> u32 {
         self.connections.load(Ordering::Relaxed)
+    }
+
+    /// Bytes the proxy has sent toward destinations since this supervisor started (the
+    /// cell's unlock), across process restarts: the `egress_bytes` the cell reports (SPEC.md
+    /// phase 10). Only the proxy process counts; nothing a sandbox reaches can change it.
+    pub fn egress_bytes(&self) -> u64 {
+        lock(&self.egress).values().fold(0u64, |sum, b| sum.saturating_add(*b))
     }
 
     /// The running process's id; `None` between a death and its replacement.
@@ -497,7 +511,14 @@ impl Supervisor {
                         sb.unregistered.send_replace(true);
                     }
                 }
-                FromProxy::Connections { count } if current => self.connections.store(count, Ordering::Relaxed),
+                FromProxy::Connections { count, egress_bytes } => {
+                    let mut by_generation = lock(&self.egress);
+                    let last = by_generation.entry(g).or_default();
+                    *last = (*last).max(egress_bytes);
+                    if current {
+                        self.connections.store(count, Ordering::Relaxed);
+                    }
+                }
                 _ => {}
             }
         }

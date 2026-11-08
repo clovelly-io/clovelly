@@ -1,8 +1,6 @@
 <!-- Generated from the price book by `clovelly-admin pages`. Do not edit by hand. -->
 # Limits
 
-> **These are staging figures for testing the billing mechanism. They are not Clovelly's prices; the prices are set before any organization outside staging exists.**
-
 Each environment starts with these quotas. A call at a quota gets the typed error `QUOTA_EXCEEDED` at once, never a queue. To raise one, write to us.
 
 | Limit | Default |
