@@ -2,11 +2,15 @@
 
 Connection rules (SPEC.md "The SDK", decision 2), not configurable off:
 
-- The cell is dialled at its forwarding-rule address (``ipv4:<host:port>``) with TLS
-  server name and HTTP/2 authority ``<subenv>.<env>.cells.clovelly.internal``.
+- The cell is dialled at its region's relay address (``ipv4:<host:port>``) with TLS
+  server name and HTTP/2 authority set to the cell's own name,
+  ``<instance>.<zone>.<subenv>.<env>.cells.clovelly.internal``, from the placement. The
+  relay routes the connection by that name and terminates nothing.
 - The only trust anchor is the environment CA. gRPC's standard verification checks
   the chain against it and the certificate's SAN against that name; there are no
-  custom certificate callbacks. The CA pins the environment, the SAN the sub-environment.
+  custom certificate callbacks. The CA pins the environment; the name, which the SDK
+  checks is under the expected sub-environment before dialling, pins the
+  sub-environment and the cell.
 - Before any call that carries data, the connection is probed with an empty
   ``grpc.health.v1.Health/Check``. gRPC sends nothing until the handshake has verified
   the certificate, so a refused cell receives nothing beyond the TLS handshake. A
@@ -36,13 +40,16 @@ from .errors import (
     _cell_error,
 )
 
-__all__ = ["Cell", "ExecResult", "authority"]
+__all__ = ["Cell", "ExecResult"]
 
 PROBE_TIMEOUT_SECS = 15.0
-# How long a cell nobody can reach yet is waited for. A new cell's forwarding rule can
-# answer the control plane, inside Google's network, tens of seconds before it answers a
-# client on the internet (phase 2: still unreachable 27 s after it was placed on).
+# How long a cell nobody can reach yet is waited for. Through the relay a placed cell answers
+# at once (phase 12); the wait covers a relay instance being replaced, and a control plane
+# from before the relay, whose per-cell forwarding rules answered a client tens of seconds
+# after the control plane (phase 2: still unreachable 27 s after it was placed on).
 CONNECT_WAIT_SECS = 90.0
+# The longest wait between reconnects of a cell's connection.
+RECONNECT_BACKOFF_MS = 2000
 # Between probes when the cell could not be reached at all.
 CONNECT_RETRY_SECS = 2.0
 # Deadline for unary cell calls (CreateSandbox includes runsc create and start).
@@ -52,11 +59,6 @@ EXEC_GRACE_SECS = 30.0
 CHUNK_BYTES = 64 * 1024
 
 _T = TypeVar("_T")
-
-
-def authority(env_id: str, subenv: str) -> str:
-    """The name a cell's certificate must carry for this environment and sub-environment."""
-    return f"{subenv}.{env_id}.cells.clovelly.internal"
 
 
 def handshake_kind(details: str) -> Optional[VerificationKind]:
@@ -119,35 +121,38 @@ class Cell:
     """A TLS connection to one cell, shared by every sandbox on it (gRPC multiplexes
     their streams). Thread-safe.
 
-    Get one from ``Environment.cell(address, subenv)``; ``Environment.sandbox`` uses the
+    Get one from ``Environment.cell(address, name)``; ``Environment.sandbox`` uses the
     same objects. Every method other than :meth:`verify` runs the verification probe
     first if it has not passed yet. The RPC methods mirror the cell API one to one and
     pass ids and keys through unchecked, so tests can exercise the cell's own checks;
     they raise the typed errors in :mod:`clovelly.errors`.
     """
 
-    def __init__(self, address: _parse.CellAddress, env_id: _parse.Label, subenv: _parse.Label, ca: bytes) -> None:
+    def __init__(self, address: _parse.CellAddress, name: _parse.CellName, ca: bytes) -> None:
         self.address = address
-        self.subenv = subenv
-        self.authority = authority(env_id, subenv)
+        self.name = name
+        self.subenv = _parse.subenv_of(name)
         self._lock = threading.RLock()
         self._state: _State = "unverified"
         self._channel = grpc.secure_channel(
             f"ipv4:{address}",
             grpc.ssl_channel_credentials(root_certificates=ca),
             options=[
-                ("grpc.ssl_target_name_override", self.authority),
-                ("grpc.default_authority", self.authority),
+                ("grpc.ssl_target_name_override", self.name),
+                ("grpc.default_authority", self.name),
                 # This channel owns its connection: closing it after a refusal drops
                 # the connection, and no other channel's connection is reused.
                 ("grpc.use_local_subchannel_pool", 1),
+                # Reconnect within 2 s, not gRPC's growing backoff: when one of a region's
+                # relay instances goes, the next connection lands on another (phase 12).
+                ("grpc.max_reconnect_backoff_ms", RECONNECT_BACKOFF_MS),
             ],
         )
         self._health = health_pb2_grpc.HealthStub(self._channel)
         self._stub = cell_pb2_grpc.CellStub(self._channel)
 
     def __repr__(self) -> str:
-        return f"Cell({self.address!r}, authority={self.authority!r}, state={self.state!r})"
+        return f"Cell({self.address!r}, name={self.name!r}, state={self.state!r})"
 
     @property
     def state(self) -> str:
@@ -351,7 +356,7 @@ class Cell:
             kind = handshake_kind(details)
             if kind is not None:
                 refusal = CellVerificationError(
-                    f"refused cell {self.address} as {self.authority}: {details}",
+                    f"refused cell {self.name} at {self.address}: {details}",
                     kind=kind,
                     address=self.address,
                     code=code.name,

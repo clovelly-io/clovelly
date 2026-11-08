@@ -16,9 +16,9 @@ import { bidiStream, type ClientMethod, clientStream, serverStream, unary } from
 /** Bytes per stdin and file-data message. */
 const CHUNK_BYTES = 64 * 1024;
 const PROBE_DEADLINE_MS = 15_000;
-// How long a cell nobody can reach yet is waited for: a new cell's forwarding rule can
-// answer the control plane, inside Google's network, tens of seconds before it answers a
-// client on the internet.
+// How long a cell nobody can reach yet is waited for. Through the relay a placed cell answers at
+// once (phase 12); the wait covers a relay instance being replaced, and a control plane from
+// before the relay, whose per-cell forwarding rules answered a client tens of seconds late.
 const CONNECT_WAIT_MS = 90_000;
 
 export interface ExecResult {
@@ -75,9 +75,12 @@ export interface FileParams extends SandboxKey {
 }
 
 /**
- * A cell: one gRPC channel over TLS that pins the environment CA and requires the
- * certificate to name `serverName` (`<subenv>.<env>.cells.clovelly.internal`) by standard
- * hostname verification. Every sandbox on the cell shares it; gRPC multiplexes their streams.
+ * A cell: one gRPC channel over TLS to its region's relay, `address`, with the TLS server name
+ * and HTTP/2 authority set to the cell's own name, `serverName`
+ * (`<instance>.<zone>.<subenv>.<env>.cells.clovelly.internal`). The relay routes by that name
+ * and terminates nothing; the channel pins the environment CA and requires the certificate to
+ * carry the name by standard hostname verification. Every sandbox on the cell shares it; gRPC
+ * multiplexes their streams.
  *
  * Each RPC waits for `verify()` first, so nothing but the empty health probe is ever sent
  * before the cell has been verified, and gRPC sends even that only after the handshake has
@@ -98,6 +101,9 @@ export class Cell {
     this.#client = new grpc.Client(address, grpc.credentials.createSsl(ca), {
       "grpc.ssl_target_name_override": serverName,
       "grpc.default_authority": serverName,
+      // Reconnect within 2 s, not gRPC's growing backoff: when one of a region's relay
+      // instances goes, the next connection lands on another (phase 12).
+      "grpc.max_reconnect_backoff_ms": 2_000,
     });
   }
 

@@ -9,7 +9,7 @@ your ciphertext, anywhere, unreadable, so we suggest doing it whatever we say we
 ## What we do
 
 1. Your API token stops working, and your pools go, so nothing new starts.
-2. Your cells are deleted, with their forwarding rules. A sandbox still running dies with
+2. Your cells are deleted. A sandbox still running dies with
    its cell. Close your sandboxes first: its last-will receipt in your log says `cell_lost`
    otherwise.
 3. Every object under your environment's prefix in our Cloud Storage is deleted: sealed

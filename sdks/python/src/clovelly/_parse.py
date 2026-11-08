@@ -18,8 +18,11 @@ from typing import Mapping, NewType, Optional, Sequence, Union
 SandboxId = NewType("SandboxId", str)
 # One DNS label: environment and sub-environment ids are parts of the cell's SAN.
 Label = NewType("Label", str)
-# "a.b.c.d:port", the cell's forwarding-rule address.
+# "a.b.c.d:port": the relay in front of the cell's region, which all its cells share.
 CellAddress = NewType("CellAddress", str)
+# "<instance>.<zone>.<subenv>.<env>.cells.clovelly.internal": one cell's own name, which the
+# relay routes by and the cell's certificate carries.
+CellName = NewType("CellName", str)
 
 PemSource = Union[str, bytes, "os.PathLike[str]"]
 Command = Union[str, Sequence[str]]
@@ -55,9 +58,31 @@ def label(value: object, what: str) -> Label:
     return Label(value)
 
 
+def cell_name(value: object, env_id: str, subenv: str) -> CellName:
+    """``<instance>.<zone>.<subenv>.<env_id>.cells.clovelly.internal`` for exactly this
+    environment and sub-environment: the name pins the sub-environment, so a control plane
+    that names another sub-environment's cell is refused here, before anything is dialled."""
+    if isinstance(value, str):
+        labels = value.split(".")
+        if (
+            len(labels) == 7
+            and all(_LABEL.fullmatch(part) for part in labels[:2])
+            and labels[2:] == [subenv, env_id, "cells", "clovelly", "internal"]
+        ):
+            return CellName(value)
+    raise ValueError(
+        f"cell name {value!r} is not <instance>.<zone>.{subenv}.{env_id}.cells.clovelly.internal"
+    )
+
+
+def subenv_of(name: CellName) -> Label:
+    """The sub-environment a parsed cell name is for."""
+    return Label(name.split(".")[2])
+
+
 def cell_address(value: object) -> CellAddress:
-    """``host:port`` with an IPv4 host: cells are dialled by forwarding-rule address,
-    never by a name the SDK would have to resolve."""
+    """``host:port`` with an IPv4 host: the region's relay, by address, never by a name
+    the SDK would have to resolve."""
     if not isinstance(value, str):
         raise ValueError(f"cell address {value!r} is not a string")
     host, sep, port = value.rpartition(":")

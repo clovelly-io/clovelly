@@ -16,7 +16,7 @@ use x509_cert::der::Decode;
 use x509_cert::der::asn1::ObjectIdentifier;
 use x509_cert::spki::SubjectPublicKeyInfoRef;
 
-use crate::ids::{EnvId, IdError, ReleaseId, SubenvId, Zone};
+use crate::ids::{EnvId, IdError, InstanceName, ReleaseId, SubenvId, Zone};
 use crate::proto::verifier as pb;
 use crate::tdx::ReportData;
 
@@ -123,9 +123,16 @@ pub fn report_data(env: &EnvId, spki: &Spki, nonce: &Nonce) -> ReportData {
     )
 }
 
-/// The DNS name a cell of `subenv` serves under, and its certificate's SAN.
+/// The DNS name every cell of `subenv` serves under: its certificate's first SAN.
 pub fn cell_dns_name(env: &EnvId, subenv: &SubenvId) -> String {
     format!("{subenv}.{env}.cells.clovelly.internal")
+}
+
+/// One cell's own name, `<instance>.<zone>.<subenv>.<env>.cells.clovelly.internal`: its
+/// certificate's second SAN, the name the SDK dials it by, and what the region's relay
+/// routes on (its first two labels are the GCE instance and zone).
+pub fn cell_name(instance: &InstanceName, zone: &Zone, env: &EnvId, subenv: &SubenvId) -> String {
+    format!("{instance}.{zone}.{}", cell_dns_name(env, subenv))
 }
 
 /// A cell's unlock evidence. The quote and CCEL stay raw: parsing them is the
@@ -142,6 +149,15 @@ pub struct Evidence {
     pub nonce: Nonce,
     pub instance_id: u64,
     pub zone: Zone,
+    /// Untrusted and unbound to the quote: it only names the cell in its certificate.
+    pub instance_name: InstanceName,
+}
+
+impl Evidence {
+    /// The cell's own name, from the evidence ([`cell_name`]).
+    pub fn cell_name(&self) -> String {
+        cell_name(&self.instance_name, &self.zone, &self.env, &self.subenv)
+    }
 }
 
 impl TryFrom<pb::Evidence> for Evidence {
@@ -155,6 +171,7 @@ impl TryFrom<pb::Evidence> for Evidence {
             spki: Spki::from_der(&e.spki)?,
             nonce: Nonce::try_from(e.nonce.as_slice())?,
             zone: e.zone.parse()?,
+            instance_name: e.instance_name.parse()?,
             instance_id: e.instance_id,
             quote: e.quote,
             ccel_table: e.ccel_table,
@@ -176,6 +193,7 @@ impl From<&Evidence> for pb::Evidence {
             nonce: e.nonce.0.to_vec(),
             instance_id: e.instance_id,
             zone: e.zone.to_string(),
+            instance_name: e.instance_name.to_string(),
         }
     }
 }
@@ -238,7 +256,34 @@ pub(crate) mod tests {
 
     #[test]
     fn cell_names_put_subenv_first() {
-        let name = cell_dns_name(&"acme".parse().unwrap(), &"bank-a".parse().unwrap());
-        assert_eq!(name, "bank-a.acme.cells.clovelly.internal");
+        let (env, subenv) = ("acme".parse().unwrap(), "bank-a".parse().unwrap());
+        assert_eq!(cell_dns_name(&env, &subenv), "bank-a.acme.cells.clovelly.internal");
+        let one = cell_name(&"clovelly-7f".parse().unwrap(), &"us-central1-a".parse().unwrap(), &env, &subenv);
+        assert_eq!(one, "clovelly-7f.us-central1-a.bank-a.acme.cells.clovelly.internal");
+    }
+
+    /// The instance name is parsed at the edge: one DNS label, or the evidence is refused.
+    #[test]
+    fn evidence_needs_an_instance_name_that_is_a_dns_label() {
+        let wire = |name: &str| pb::Evidence {
+            env_id: "acme".into(),
+            subenv_id: "bank-a".into(),
+            release_id: "clovelly-0.1.0".into(),
+            spki: spki_der(),
+            nonce: vec![1; 32],
+            instance_id: 7,
+            zone: "us-central1-a".into(),
+            instance_name: name.into(),
+            ..Default::default()
+        };
+        let ev = Evidence::try_from(wire("clovelly-7f")).unwrap();
+        assert_eq!(ev.cell_name(), "clovelly-7f.us-central1-a.bank-a.acme.cells.clovelly.internal");
+        assert_eq!(pb::Evidence::from(&ev).instance_name, "clovelly-7f");
+        for bad in ["", "a.b", "Upper", "-lead", "trail-", "under_score", &"x".repeat(64)] {
+            assert!(
+                matches!(Evidence::try_from(wire(bad)), Err(EvidenceError::Id(IdError::NotLabel { kind: "instance name", .. }))),
+                "{bad:?}"
+            );
+        }
     }
 }

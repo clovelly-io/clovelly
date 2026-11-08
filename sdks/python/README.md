@@ -47,7 +47,9 @@ env = clovelly.Environment(verifier_url, env_id, ca_bundle,
 
 - `ca_bundle`: the environment CA, as PEM (str or bytes) or a path to a PEM file. It is
   the only trust anchor for cells.
-- `env_id`: the environment id (a DNS label). It names the cells: `<subenv>.<env_id>.cells.clovelly.internal`.
+- `env_id`: the environment id (a DNS label). It names the cells: each cell's certificate
+  carries `<subenv>.<env_id>.cells.clovelly.internal` and the cell's own
+  `<instance>.<zone>.<subenv>.<env_id>.cells.clovelly.internal`.
 - `verifier_url`: the customer's verifier, `https://host[:port]`. The SDK calls it to seal
   credentials and template keys and to read the receipt log, always with the SDK token
   `verifier_token` (default `CLOVELLY_VERIFIER_TOKEN`). `verifier_ca` (PEM or a path, default
@@ -100,8 +102,9 @@ env.close()
 between threads; it keeps one TLS connection per cell, and every sandbox on that cell
 multiplexes its streams over it.
 
-`env.cell(address, subenv)` returns the low-level `Cell` for tests that talk to a cell
-directly: `.verify()` runs the probe, and `create_sandbox`, `exec`, `read_file`,
+`env.cell(address, name, subenv)` returns the low-level `Cell` for tests that talk to a cell
+directly, by its region's relay address and its own name (`Sandbox.cell_address` and
+`Sandbox.cell_name`): `.verify()` runs the probe, and `create_sandbox`, `exec`, `read_file`,
 `write_file`, `kill` and `get_receipt` mirror the RPCs, passing ids and keys through
 unchecked so the cell's own checks can be exercised.
 
@@ -218,13 +221,18 @@ empty log. `clovelly.egress_log_sha256(lines)` computes the hash.
 
 Enforced by the SDK and not configurable off (SPEC.md "The SDK" and decision 2):
 
-1. The cell is dialled at the address the control plane returned, as `ipv4:<host:port>`,
-   with `grpc.ssl_target_name_override` and `grpc.default_authority` both set to
-   `<subenv>.<env_id>.cells.clovelly.internal`. The sub-environment is the one the caller
-   asked for, not one the control plane names.
+1. The cell is dialled at the address the control plane returned, the relay in front of its
+   region (`ipv4:<host:port>`), with `grpc.ssl_target_name_override` and
+   `grpc.default_authority` both set to the cell's own name from the placement,
+   `<instance>.<zone>.<subenv>.<env_id>.cells.clovelly.internal`. The relay routes the
+   connection to that cell by the name in the TLS handshake and terminates nothing. The SDK
+   refuses a placement whose name is not under the sub-environment the caller asked for
+   (`ProtocolError`), before dialling anything.
 2. The environment CA is the only root (`grpc.ssl_channel_credentials(root_certificates=ca)`).
    gRPC's standard verification checks the chain and the SAN; there are no custom
-   certificate callbacks. The CA binds the environment, the SAN the sub-environment.
+   certificate callbacks. The CA binds the environment, the name the sub-environment and the
+   cell: a relay that delivered the connection to any other cell would present a certificate
+   without that name, and the SDK refuses it (`name_mismatch`).
 3. Before any call that carries data, the connection is probed with an empty
    `grpc.health.v1.Health/Check` (`wait_for_ready=False`, 15 s; a timeout, or a cell that
    cannot be reached yet, is retried for up to 90 s). gRPC sends nothing until the TLS

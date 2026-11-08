@@ -14,11 +14,10 @@
 //! 5 no unlock before the deadline, 6 any other failure. PID 1 powers the VM off when
 //! the agent exits, which recycles the cell.
 
-use std::net::Ipv4Addr;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicU64};
+use std::sync::atomic::AtomicU64;
 use std::time::SystemTime;
 
 use anyhow::Context;
@@ -31,7 +30,6 @@ use common::sandbox::CpuShare;
 use common::proto::health::health_server::HealthServer;
 use serde_json::json;
 use tokio::net::TcpListener;
-use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::watch;
 use tonic::transport::Server;
 
@@ -105,6 +103,7 @@ pub fn save_evidence(dir: &Path, ev: &Evidence, at: u64) -> std::io::Result<()> 
         "nonce": common::hex(&ev.nonce.0),
         "instance_id": ev.instance_id,
         "zone": ev.zone.as_str(),
+        "instance_name": ev.instance_name.as_str(),
         "at": at,
     });
     std::fs::write(dir.join("evidence.json"), format!("{claims:#}\n"))
@@ -117,11 +116,6 @@ fn hold() -> ! {
 }
 
 pub async fn run(opts: Options) -> anyhow::Result<ExitCode> {
-    // The cell's forwarding rule appears once the control plane has created it; the
-    // cell reports ready only when its address is routed.
-    let routed = Arc::new(AtomicBool::new(false));
-    let (own_tx, own) = tokio::sync::mpsc::unbounded_channel();
-    tokio::spawn(crate::forwarded::keep_routes(Arc::clone(&routed), Some(own_tx)));
     let integrity = match tokio::task::spawn_blocking(boot::integrity).await? {
         Ok(i) => i,
         Err(refusal) => {
@@ -161,7 +155,7 @@ pub async fn run(opts: Options) -> anyhow::Result<ExitCode> {
                     "valid_until": boot::unix(unlocked.valid_until),
                 }),
             );
-            return serve(cfg, key, api, (table, log), unlocked, (routed, own), &opts).await;
+            return serve(cfg, key, api, (table, log), unlocked, &opts).await;
         }
         Err(f) => f,
     };
@@ -193,9 +187,8 @@ pub async fn run(opts: Options) -> anyhow::Result<ExitCode> {
 
 /// Starts the egress proxy as its own process with a fresh in-cell CA (its supervisor
 /// restarts it with the same CA if it dies), writes the sandboxes' trust store,
-/// installs the nftables rules and hands the proxy the cell's own addresses as they are
-/// routed. The proxy never receives the DEK.
-async fn start_proxy(cfg: &BootConfig, mut own: UnboundedReceiver<Ipv4Addr>) -> anyhow::Result<Arc<Supervisor>> {
+/// and installs the nftables rules. The proxy never receives the DEK.
+async fn start_proxy(cfg: &BootConfig) -> anyhow::Result<Arc<Supervisor>> {
     let roots = std::fs::read_to_string(ROOTS).context(ROOTS)?;
     let upstream_roots = format!("{roots}\n{}", test_upstream_ca().unwrap_or_default());
     let proxy = Supervisor::start(SupervisorConfig {
@@ -210,12 +203,6 @@ async fn start_proxy(cfg: &BootConfig, mut own: UnboundedReceiver<Ipv4Addr>) -> 
     std::fs::create_dir_all(store.parent().expect("the trust store has a directory"))?;
     std::fs::write(store, format!("{roots}\n{}", proxy.ca_pem())).context(TRUST_STORE)?;
     net::setup_cell(Ports::CELL).await?;
-    let supervisor = Arc::clone(&proxy);
-    tokio::spawn(async move {
-        while let Some(ip) = own.recv().await {
-            supervisor.add_own(ip).await;
-        }
-    });
     status("proxy", json!({ "ports": format!("{:?}", Ports::CELL), "pid": proxy.pid() }));
     Ok(proxy)
 }
@@ -249,7 +236,6 @@ async fn serve(
     mut api: GrpcVerifier,
     (table, log): (Vec<u8>, Vec<u8>),
     first: Unlocked,
-    (routed, own): (Arc<AtomicBool>, UnboundedReceiver<Ipv4Addr>),
     opts: &Options,
 ) -> anyhow::Result<ExitCode> {
     let machine = cgroup::machine()?;
@@ -258,7 +244,7 @@ async fn serve(
     for dir in [BUNDLES, PIDS] {
         std::fs::create_dir_all(dir).with_context(|| dir.to_owned())?;
     }
-    let proxy = start_proxy(&cfg, own).await?;
+    let proxy = start_proxy(&cfg).await?;
     let policies = Policies::new(cfg.env.clone(), cfg.subenv.clone(), placeable, &first.policy_key);
     let _ = policies.offer(&first.policy_bundle, &first.policy_sig, "unlock");
     // The sharing factor is the unlock's bundle's, fixed for the cell's life, so the
@@ -358,6 +344,9 @@ async fn serve(
     let mut server = tokio::spawn(
         Server::builder()
             .http2_keepalive_interval(Some(std::time::Duration::from_secs(30)))
+            // Flow-control windows sized to the path's delay, not a fixed 1 MiB: through the
+            // relay, a fixed window held 100 MB writes to about 70% of direct (phase 12).
+            .http2_adaptive_window(Some(true))
             .add_service(HealthServer::new(Serving))
             .add_service(CellServer::new(cell_api))
             .serve_with_incoming(tls::incoming(listener, tls_config)),
@@ -388,7 +377,6 @@ async fn serve(
         sandboxes: Arc::clone(&sandboxes),
         terms: Arc::clone(&terms),
         drain: drain_rx.clone(),
-        ready: routed,
         cpu_share,
     };
     let reporter = match (channel, &control_ca_pem) {

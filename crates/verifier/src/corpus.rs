@@ -74,6 +74,17 @@ pub struct EvidenceFile {
     pub nonce: String,
     pub instance_id: u64,
     pub zone: String,
+    /// Bundles captured before cells sent their name (phase 12) carry none and take
+    /// [`CORPUS_INSTANCE`]: nothing binds the name to the quote, so any name serves.
+    #[serde(default = "corpus_instance")]
+    pub instance_name: String,
+}
+
+/// The instance name of a bundle captured before cells sent one.
+pub const CORPUS_INSTANCE: &str = "clovelly-corpus";
+
+fn corpus_instance() -> String {
+    CORPUS_INSTANCE.to_owned()
 }
 
 /// Intel collateral as stored in a bundle.
@@ -207,6 +218,7 @@ impl Bundle {
             )?,
             instance_id: e.instance_id,
             zone: e.zone.parse().map_err(field)?,
+            instance_name: e.instance_name.parse().map_err(field)?,
         })
     }
 

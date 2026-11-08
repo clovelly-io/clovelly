@@ -19,7 +19,7 @@ class GetNonceResponse(_message.Message):
     def __init__(self, nonce: _Optional[bytes] = ...) -> None: ...
 
 class Evidence(_message.Message):
-    __slots__ = ("quote", "ccel_table", "ccel_log", "env_id", "subenv_id", "release_id", "spki", "nonce", "instance_id", "zone")
+    __slots__ = ("quote", "ccel_table", "ccel_log", "env_id", "subenv_id", "release_id", "spki", "nonce", "instance_id", "zone", "instance_name")
     QUOTE_FIELD_NUMBER: _ClassVar[int]
     CCEL_TABLE_FIELD_NUMBER: _ClassVar[int]
     CCEL_LOG_FIELD_NUMBER: _ClassVar[int]
@@ -30,6 +30,7 @@ class Evidence(_message.Message):
     NONCE_FIELD_NUMBER: _ClassVar[int]
     INSTANCE_ID_FIELD_NUMBER: _ClassVar[int]
     ZONE_FIELD_NUMBER: _ClassVar[int]
+    INSTANCE_NAME_FIELD_NUMBER: _ClassVar[int]
     quote: bytes
     ccel_table: bytes
     ccel_log: bytes
@@ -40,7 +41,8 @@ class Evidence(_message.Message):
     nonce: bytes
     instance_id: int
     zone: str
-    def __init__(self, quote: _Optional[bytes] = ..., ccel_table: _Optional[bytes] = ..., ccel_log: _Optional[bytes] = ..., env_id: _Optional[str] = ..., subenv_id: _Optional[str] = ..., release_id: _Optional[str] = ..., spki: _Optional[bytes] = ..., nonce: _Optional[bytes] = ..., instance_id: _Optional[int] = ..., zone: _Optional[str] = ...) -> None: ...
+    instance_name: str
+    def __init__(self, quote: _Optional[bytes] = ..., ccel_table: _Optional[bytes] = ..., ccel_log: _Optional[bytes] = ..., env_id: _Optional[str] = ..., subenv_id: _Optional[str] = ..., release_id: _Optional[str] = ..., spki: _Optional[bytes] = ..., nonce: _Optional[bytes] = ..., instance_id: _Optional[int] = ..., zone: _Optional[str] = ..., instance_name: _Optional[str] = ...) -> None: ...
 
 class UnlockRequest(_message.Message):
     __slots__ = ("evidence",)

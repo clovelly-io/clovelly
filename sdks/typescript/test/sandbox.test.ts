@@ -20,7 +20,7 @@ import {
   ProtocolError,
   placeholder,
 } from "../src/index.js";
-import { FakeCell, FakeControl, makePki, refusal, SIGNATURE } from "./fakes.js";
+import { CELL_1, CELL_B, FakeCell, FakeControl, makePki, refusal, SIGNATURE } from "./fakes.js";
 
 const pki = makePki();
 
@@ -232,6 +232,17 @@ describe("sandboxes", () => {
     const creates = first.calls.filter((call) => call === "CreateSandbox").length;
     await assert.rejects(env.sandbox("a"), ProtocolError);
     assert.equal(first.calls.filter((call) => call === "CreateSandbox").length, creates);
+  });
+
+  it("refuses a placement naming another sub-environment's cell, or no cell, before dialling it", async () => {
+    const env = environment();
+    for (const cellName of [CELL_B, "a.staging.cells.clovelly.internal", `x.${CELL_1}`, ""]) {
+      control.tamper = (placement) => ({ ...placement, cellName });
+      const calls = first.calls.length;
+      await assert.rejects(env.sandbox("a"), ProtocolError, cellName);
+      assert.equal(first.calls.length, calls, `nothing reached a cell for ${JSON.stringify(cellName)}`);
+    }
+    control.tamper = undefined;
   });
 
   it("releases every placement that does not become a sandbox", async () => {

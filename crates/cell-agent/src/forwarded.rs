@@ -1,19 +1,18 @@
-//! Accepting traffic for the cell's forwarding rule (SPEC.md "Reaching a cell").
+//! Accepting traffic for a test VM's forwarding rule: the test destination and the
+//! impostor (phases 3 and 4) are reached through one. Cells have none since phase 12:
+//! clients reach them through their region's relay at their internal address.
 //!
 //! A forwarding rule to a target instance delivers packets still addressed to the rule's
 //! IP. Google's guest agent normally routes such addresses to the host; the image has no
-//! guest agent, so the cell agent does this one thing itself: every 10 seconds it reads
-//! the instance's forwarded IPs from metadata and adds a local route for each new one
+//! guest agent, so the agent does this one thing itself: every 10 seconds it reads the
+//! instance's forwarded IPs from metadata and adds a local route for each new one
 //! (`ip route replace local IP dev eth0 table local`).
 //!
-//! Metadata is untrusted: a wrong address only makes the cell accept packets for an
-//! address it does not own, and every connection still has to complete TLS with the
-//! cell's key.
+//! Metadata is untrusted: a wrong address only makes the VM accept packets for an
+//! address it does not own.
 
 use std::collections::BTreeSet;
 use std::net::Ipv4Addr;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use serde_json::json;
@@ -32,11 +31,8 @@ fn parse(body: &str) -> Vec<Ipv4Addr> {
         .collect()
 }
 
-/// Keeps routing the instance's forwarded IPs to this host, forever. `routed_any` is set
-/// once one is: until then nobody can reach the cell, so it does not report ready. Each
-/// is also one of the cell's own addresses, which the egress proxy never connects to:
-/// each new one goes to `own`, for the proxy's supervisor.
-pub async fn keep_routes(routed_any: Arc<AtomicBool>, own: Option<tokio::sync::mpsc::UnboundedSender<Ipv4Addr>>) {
+/// Keeps routing the instance's forwarded IPs to this host, forever.
+pub async fn keep_routes() {
     let mut routed = BTreeSet::new();
     loop {
         let body = tokio::task::spawn_blocking(|| metadata::get(PATH)).await;
@@ -54,10 +50,6 @@ pub async fn keep_routes(routed_any: Arc<AtomicBool>, own: Option<tokio::sync::m
                 match out {
                     Ok(o) if o.status.success() => {
                         routed.insert(ip);
-                        if let Some(own) = &own {
-                            let _ = own.send(ip);
-                        }
-                        routed_any.store(true, Ordering::Relaxed);
                         status("forwarded-ip", json!({ "ip": ip.to_string() }));
                     }
                     Ok(o) => status(

@@ -166,9 +166,9 @@ export type CellVerificationKind = "untrusted_certificate" | "name_mismatch" | "
  */
 export class CellVerificationError extends ClovellyError {
   readonly kind: CellVerificationKind;
-  /** The address dialled. */
+  /** The address dialled: the region's relay. */
   readonly address: string;
-  /** The name the certificate had to carry: `<subenv>.<env>.cells.clovelly.internal`. */
+  /** The name the certificate had to carry: the cell's own, `<instance>.<zone>.<subenv>.<env>.cells.clovelly.internal`. */
   readonly serverName: string;
 
   constructor(kind: CellVerificationKind, address: string, serverName: string, cause: grpc.ServiceError) {

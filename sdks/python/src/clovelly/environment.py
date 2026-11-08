@@ -75,7 +75,9 @@ class Environment:
 
     ``ca_bundle`` is the environment CA (PEM as str or bytes, or a path to a PEM file),
     from the customer's verifier (``GetCA``). It is the only trust anchor for cells: a
-    cell's certificate must chain to it and name ``<subenv>.<env_id>.cells.clovelly.internal``.
+    cell's certificate must chain to it and carry the cell's own name,
+    ``<instance>.<zone>.<subenv>.<env_id>.cells.clovelly.internal``, which the control plane
+    gives with each placement and the SDK checks is under the expected sub-environment.
     ``env_id`` is the environment's id (a DNS label). ``verifier_url`` is the customer's
     verifier (``https://host[:port]``), which seals credentials (:meth:`put_credential`)
     and template keys (:meth:`upload_template`) and keeps the receipt log
@@ -201,9 +203,9 @@ class Environment:
             placement = control.place(self.env_id, sub, halves, memory_gib, timeout_secs, avoid)
             timings["place_ms"] += _ms(started)
             try:
-                self._check(placement, sub)
+                name = self._check(placement, sub)
                 started = time.perf_counter()
-                cell, cached = self._connect(placement.cell_address, sub)
+                cell, cached = self._connect(placement.cell_address, name)
                 timings["connect_ms"] += 0.0 if cached else _ms(started)
                 key = os.urandom(_parse.KEY_BYTES)
                 started = time.perf_counter()
@@ -264,10 +266,10 @@ class Environment:
             sub = expected
         else:
             raise ProtocolError(f"the control plane located {sid} without a sub-environment; pass subenv=")
-        self._check(placement, sub)
+        name = self._check(placement, sub)
 
         started = time.perf_counter()
-        cell, cached = self._connect(placement.cell_address, sub)
+        cell, cached = self._connect(placement.cell_address, name)
         timings["connect_ms"] = 0.0 if cached else _ms(started)
         started = time.perf_counter()
         cell.get_receipt(sid, key_bytes)
@@ -372,18 +374,21 @@ class Environment:
         then checks that against a receipt's ``egress_log_hash``."""
         return self._verifier().egress_log(self.env_id, _parse.sandbox_id(sandbox_id))
 
-    def cell(self, address: str, subenv: str) -> Cell:
-        """The shared connection to the cell at ``address`` (``host:port``, IPv4) for
-        ``subenv``, created on first use. It is verified on its first call; call
-        ``.verify()`` to do that explicitly. A connection closed by a refusal is
-        replaced by a fresh one here."""
+    def cell(self, address: str, name: str, subenv: str) -> Cell:
+        """The shared connection to the cell named ``name``
+        (``<instance>.<zone>.<subenv>.<env_id>.cells.clovelly.internal``, of ``subenv``)
+        through ``address`` (``host:port``, IPv4: its region's relay), created on first use.
+        It is verified on its first call; call ``.verify()`` to do that explicitly. A
+        connection closed by a refusal is replaced by a fresh one here."""
         addr = _parse.cell_address(address)
         sub = _parse.label(subenv, "sub-environment id")
+        cell_name = _parse.cell_name(name, self.env_id, sub)
         with self._lock:
-            cell = self._cells.get((addr, sub))
+            # One connection per name: every cell of a region shares the relay's address.
+            cell = self._cells.get((addr, cell_name))
             if cell is None or cell.closed:
-                cell = Cell(addr, self.env_id, sub, self._ca)
-                self._cells[(addr, sub)] = cell
+                cell = Cell(addr, cell_name, self._ca)
+                self._cells[(addr, cell_name)] = cell
             return cell
 
     def close(self) -> None:
@@ -400,18 +405,23 @@ class Environment:
         if verifier is not None:
             verifier.close()
 
-    def _connect(self, address: _parse.CellAddress, subenv: _parse.Label) -> tuple[Cell, bool]:
+    def _connect(self, address: _parse.CellAddress, name: _parse.CellName) -> tuple[Cell, bool]:
         """The verified connection to a cell, and whether it was already verified."""
-        cell = self.cell(address, subenv)
+        cell = self.cell(address, name, _parse.subenv_of(name))
         cached = cell.verified
         cell.verify()
         return cell, cached
 
-    def _check(self, placement: Placement, subenv: str) -> None:
+    def _check(self, placement: Placement, subenv: str) -> _parse.CellName:
+        """The placement's cell name, once the placement is for this environment and ``subenv``."""
         if placement.env_id and placement.env_id != self.env_id:
             raise ProtocolError(f"placement is for environment {placement.env_id!r}, not {self.env_id!r}")
         if placement.subenv and placement.subenv != subenv:
             raise ProtocolError(f"placement is for sub-environment {placement.subenv!r}, not {subenv!r}")
+        try:
+            return _parse.cell_name(placement.cell_name, self.env_id, subenv)
+        except ValueError as err:
+            raise ProtocolError(f"the control plane sent a bad placement: {err}") from None
 
     def _control(self) -> Control:
         with self._lock:
@@ -442,7 +452,9 @@ class Environment:
 class Sandbox:
     """A sandbox on one cell. Made by ``Environment.sandbox`` or ``Environment.reconnect``.
 
-    ``id`` and ``key`` (hex) are all another process needs to reconnect. ``cpu`` (vCPUs),
+    ``id`` and ``key`` (hex) are all another process needs to reconnect. ``cell_address`` is
+    the region's relay and ``cell_name`` the cell's own name, which the connection is dialled
+    and verified by. ``cpu`` (vCPUs),
     ``memory`` (GiB) and ``timeout`` (seconds) are what was placed, defaults filled in.
     ``cold`` is True when a cell had to boot for it. ``timings`` holds milliseconds:
     ``place_ms``, ``connect_ms`` (0 when the cell's connection was already verified),
@@ -455,6 +467,7 @@ class Sandbox:
     id: str
     cell_id: str
     cell_address: str
+    cell_name: str
     subenv: str
     cold: bool
     cpu: float
@@ -473,6 +486,7 @@ class Sandbox:
             id=placement.sandbox_id,
             cell_id=placement.cell_id,
             cell_address=placement.cell_address,
+            cell_name=cell.name,
             subenv=cell.subenv,
             cold=placement.cold,
             cpu=placement.cpu_halves / 2,

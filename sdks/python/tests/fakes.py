@@ -33,6 +33,10 @@ from clovelly.control.v1 import control_pb2, control_pb2_grpc
 from clovelly.verifier.v1 import verifier_pb2, verifier_pb2_grpc
 
 ENV_ID = "staging"
+# Two cells of sub-environment a and one of b, by their own names (phase 12).
+CELL_1 = f"cell-1.us-central1-a.a.{ENV_ID}.cells.clovelly.internal"
+CELL_2 = f"cell-2.us-central1-a.a.{ENV_ID}.cells.clovelly.internal"
+CELL_B = f"cell-1.us-central1-a.b.{ENV_ID}.cells.clovelly.internal"
 TOKEN = "test-token"
 VERIFIER_TOKEN = "sdk-token"
 # The signature fake cells put on their receipts (the SDK does not verify it).
@@ -59,9 +63,11 @@ class Pki:
     """Test certificates, EC P-256, in a temporary directory.
 
     CAs: ``env`` (the environment CA the SDK pins), ``other`` (another environment's),
-    ``api`` (the control plane's). Leaves: ``cell_a`` (env CA, SAN for sub-environment
-    a), ``cell_b`` (env CA, sub-environment b), ``self_signed`` and ``other_ca`` (both
-    naming sub-environment a), ``control`` (api CA, 127.0.0.1).
+    ``api`` (the control plane's). Leaves, each with a cell's two SANs as the verifier
+    issues them: ``cell_a`` (env CA, sub-environment a and ``CELL_1``), ``cell_a2`` (env CA,
+    a and ``CELL_2``, a second cell), ``cell_b`` (env CA, sub-environment b and ``CELL_B``),
+    ``old_a`` (env CA, sub-environment a only, as before phase 12), ``self_signed`` and
+    ``other_ca`` (both naming a and ``CELL_1``); ``control`` (api CA, 127.0.0.1).
     """
 
     def __init__(self) -> None:
@@ -70,10 +76,12 @@ class Pki:
         for ca in ("env", "other", "api"):
             self._ca(ca)
         a = f"DNS:a.{ENV_ID}.cells.clovelly.internal"
-        self._leaf("cell_a", a, "env")
-        self._leaf("cell_b", f"DNS:b.{ENV_ID}.cells.clovelly.internal", "env")
-        self._leaf("self_signed", a, None)
-        self._leaf("other_ca", a, "other")
+        self._leaf("cell_a", f"{a}, DNS:{CELL_1}", "env")
+        self._leaf("cell_a2", f"{a}, DNS:{CELL_2}", "env")
+        self._leaf("cell_b", f"DNS:b.{ENV_ID}.cells.clovelly.internal, DNS:{CELL_B}", "env")
+        self._leaf("old_a", a, "env")
+        self._leaf("self_signed", f"{a}, DNS:{CELL_1}", None)
+        self._leaf("other_ca", f"{a}, DNS:{CELL_1}", "other")
         self._leaf("control", "DNS:localhost, IP:127.0.0.1", "api")
 
     def cert(self, name: str) -> bytes:
@@ -167,8 +175,10 @@ class FakeCell(cell_pb2_grpc.CellServicer):
     many streams open at once), ``exit N`` exits with N; anything else prints its argv.
     """
 
-    def __init__(self, cert: str = "cell_a", cell_id: str = "cell-1") -> None:
+    def __init__(self, cert: str = "cell_a", cell_id: str = "cell-1", name: str = CELL_1) -> None:
         self.cell_id = cell_id
+        # The name the control plane places by; the certificate may say otherwise.
+        self.name = name
         self.calls: list[str] = []
         self.peers: set[str] = set()
         self.sandboxes: dict[str, FakeSandbox] = {}
@@ -301,6 +311,8 @@ class FakeControl(control_pb2_grpc.ControlServicer):
         self.tokens: set[str] = set()
         self.placed: dict[str, FakeCell] = {}
         self.refuse_place: Optional[tuple] = None
+        # A cell name to place with instead of the cell's own (a control plane naming another cell).
+        self.name_override: Optional[str] = None
         self.regions = ("us-central1", "europe-west4", "asia-southeast1")
         self.pools: dict[str, control_pb2.Pool] = {}
         self.uploads: list[Upload] = []
@@ -323,6 +335,7 @@ class FakeControl(control_pb2_grpc.ControlServicer):
             sandbox_id=sandbox_id,
             cell_id=cell.cell_id,
             cell_address=cell.address,
+            cell_name=self.name_override or cell.name,
             env_id=ENV_ID,
             subenv_id="a",
             cold=False,

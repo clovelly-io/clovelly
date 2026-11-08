@@ -17,6 +17,26 @@ reviewed; the release policy's `allowed_zones` names exactly these zones, and yo
 other. `us-east4` and `us-west1` have two zones each: their other zones do not take a confidential (TDX) VM, so a
 stockout in both of a region's two zones is a region out.
 
+## Reaching your cells
+
+Your SDK reaches a sandbox through one address in its region, the relay in front of that region's cells. Cells have
+no address of their own on the internet. The SDK dials the relay with the cell's own name,
+`<instance>.<zone>.<subenv>.<env>.cells.clovelly.internal`, as the TLS server name. The relay forwards the
+connection to that cell without decrypting it, and the SDK checks the cell's certificate against your environment CA
+as it always has. If your network allows outbound connections only to listed addresses, allow TCP 443 to your
+regions' relays:
+
+| Region | Relay address |
+|---|---|
+| `us-central1` | `34.70.149.64` |
+| `europe-west4` | `34.178.167.37` |
+| `us-east4` | `34.181.207.249` |
+| `us-west1` | `136.66.203.110` |
+| `asia-southeast1` | `34.126.99.122` |
+
+The relay learns which cell each connection is for and how many bytes go each way, and nothing else. See the
+[threat model](threat-model.md#the-relay-in-front-of-the-cells).
+
 ## Choosing one
 
 ```python

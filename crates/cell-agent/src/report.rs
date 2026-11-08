@@ -4,7 +4,6 @@
 //! image. Nothing else leaves the cell this way.
 
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use common::proto::control::cell_channel_client::CellChannelClient;
@@ -30,8 +29,6 @@ pub struct Reported {
     pub sandboxes: Arc<Sandboxes>,
     pub terms: Arc<SharedTerms>,
     pub drain: watch::Receiver<DrainState>,
-    /// Serving and reachable: the forwarding rule's address is routed to the cell.
-    pub ready: Arc<AtomicBool>,
     /// The cell's sharing factor, fixed at the unlock; the unreserved CPU already counts it.
     pub cpu_share: CpuShare,
 }
@@ -82,7 +79,9 @@ fn report(cfg: &BootConfig, r: &Reported, cpu: &mut CpuMeter) -> CellReport {
     CellReport {
         instance_id: cfg.instance_id,
         zone: cfg.zone.to_string(),
-        ready: r.ready.load(Ordering::Relaxed),
+        // Reports start once the listener is bound: the cell is serving. The control plane
+        // places on it once it answers as its own name through the region's relay.
+        ready: true,
         unreserved_cpu_halves: snap.unreserved.cpu.0,
         unreserved_memory_gib: snap.unreserved.memory.0,
         sandbox_count: snap.count,

@@ -341,6 +341,7 @@ impl<S: Sources, K: Keys> Verifier<S, K> {
         let request = x509::CellRequest {
             spki: ev.spki.der(),
             dns: &evidence::cell_dns_name(&ev.env, &ev.subenv),
+            cell_name: &ev.cell_name(),
             info: &info,
             now,
             not_after: now + LEASE_SECS,
@@ -754,6 +755,44 @@ mod release_window {
         for r in v.load_fragments(bundles) {
             r.unwrap();
         }
+    }
+
+    /// Phase 12 criterion 1: an evidence naming a zone outside the policy's `allowed_zones` is
+    /// refused by check 7 with a typed failure, whatever else it carries; the zone is half of
+    /// the cell's own SAN, so no certificate names a zone the customer did not allow.
+    #[tokio::test]
+    async fn a_zone_outside_the_policy_fails_check_7() {
+        use aws_lc_rs::encoding::AsDer;
+        let key = aws_lc_rs::agreement::PrivateKey::generate(&aws_lc_rs::agreement::ECDH_P256).unwrap();
+        let spki = common::evidence::Spki::from_der(key.compute_public_key().unwrap().as_der().unwrap().as_ref()).unwrap();
+        let ev = Evidence {
+            quote: vec![],
+            ccel_table: vec![],
+            ccel_log: vec![],
+            env: "staging".parse().unwrap(),
+            subenv: "a".parse().unwrap(),
+            release: "clovelly-0.2.0".parse().unwrap(),
+            spki,
+            nonce: common::evidence::Nonce([0; 32]),
+            instance_id: 7,
+            zone: "europe-west4-a".parse().unwrap(),
+            instance_name: "clovelly-7f".parse().unwrap(),
+        };
+        let m = Measurement([0; 48]);
+        let quote = Quote {
+            version: common::tdx::QuoteVersion::V4,
+            tee_tcb_svn: [0; 16],
+            mr_seam: m,
+            td_attributes: 0,
+            xfam: 0,
+            mr_td: m,
+            mr_owner: m,
+            rtmrs: [m; 4],
+            report_data: common::tdx::ReportData([0; 64]),
+        };
+        let v = World::new().verifier(&[]);
+        let outcome = v.owner(&ev, &quote, Some("ppid"), "ppid", AT).await.unwrap();
+        assert_eq!(outcome, Outcome::Fail(Failure::ZoneNotAllowed("europe-west4-a".parse().unwrap())));
     }
 
     /// Criterion 3.

@@ -216,6 +216,7 @@ pub(crate) mod tests {
             release: "clovelly-0.1.0-test".parse().unwrap(),
             instance_id: 1,
             zone: "us-central1-a".parse().unwrap(),
+            instance_name: "clovelly-0a1b2c3d".parse().unwrap(),
             project: "1".into(),
             deadline: Duration::from_secs(5),
             control_plane: None,

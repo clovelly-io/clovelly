@@ -219,7 +219,9 @@ message CellStatus {
   uint32 sandbox_count = 11;
   Resources unreserved = 12;
   string recycle_reason = 13;
-  string forwarding_rule = 14;
+  // 14 was forwarding_rule: cells have none since the relay (phase 12).
+  reserved 14;
+  reserved "forwarding_rule";
   // The CPU sharing factor the cell reported (1 is dedicated CPU); 0 before its first report.
   uint32 cpu_share = 15;
 }
@@ -237,7 +239,7 @@ message PlaceSandboxRequest {
 message Placement {
   string sandbox_id = 1;
   string cell_id = 2;
-  // host:port of the cell's forwarding rule.
+  // host:port of the relay in front of the cell's region: the address the SDK dials.
   string cell_address = 3;
   string env_id = 4;
   string subenv_id = 5;
@@ -246,6 +248,10 @@ message Placement {
   // The size and timeout placed, defaults filled in.
   Resources size = 7;
   uint32 timeout_secs = 8;
+  // The cell's own name, <instance>.<zone>.<subenv>.<env>.cells.clovelly.internal: the
+  // TLS server name and HTTP/2 authority the SDK dials cell_address with, which the
+  // relay routes by and the cell's certificate must carry.
+  string cell_name = 9;
 }
 
 message LocateSandboxRequest {

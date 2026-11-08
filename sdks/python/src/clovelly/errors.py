@@ -250,9 +250,10 @@ class CellVerificationError(ClovellyError):
     """The cell's TLS handshake failed, so nothing beyond the handshake reached it.
 
     ``kind`` says why: ``"untrusted_certificate"`` (self-signed, or issued by a CA other
-    than this environment's), ``"name_mismatch"`` (the certificate does not name this
-    environment and sub-environment) or ``"handshake"`` (any other TLS failure, such as
-    a server that does not speak TLS). ``address`` is the cell address that was dialled.
+    than this environment's), ``"name_mismatch"`` (the certificate does not carry the cell
+    name that was dialled, such as another cell's) or ``"handshake"`` (any other TLS
+    failure, such as a server that does not speak TLS). ``address`` is the address that
+    was dialled (the region's relay).
     """
 
     def __init__(

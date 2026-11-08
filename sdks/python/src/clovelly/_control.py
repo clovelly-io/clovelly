@@ -54,6 +54,8 @@ class Placement:
     sandbox_id: _parse.SandboxId
     cell_id: str
     cell_address: _parse.CellAddress
+    # Checked against the environment and sub-environment by Environment, which knows them.
+    cell_name: str
     env_id: str
     subenv: str
     cold: bool
@@ -74,6 +76,7 @@ class Placement:
             sandbox_id=sandbox_id,
             cell_id=msg.cell_id,
             cell_address=address,
+            cell_name=msg.cell_name,
             env_id=msg.env_id,
             subenv=msg.subenv_id,
             cold=msg.cold,

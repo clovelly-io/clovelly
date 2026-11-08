@@ -126,8 +126,6 @@ pub struct CellStatus {
     pub unreserved: ::core::option::Option<Resources>,
     #[prost(string, tag = "13")]
     pub recycle_reason: ::prost::alloc::string::String,
-    #[prost(string, tag = "14")]
-    pub forwarding_rule: ::prost::alloc::string::String,
     /// The CPU sharing factor the cell reported (1 is dedicated CPU); 0 before its first report.
     #[prost(uint32, tag = "15")]
     pub cpu_share: u32,
@@ -153,7 +151,7 @@ pub struct Placement {
     pub sandbox_id: ::prost::alloc::string::String,
     #[prost(string, tag = "2")]
     pub cell_id: ::prost::alloc::string::String,
-    /// host:port of the cell's forwarding rule.
+    /// host:port of the relay in front of the cell's region: the address the SDK dials.
     #[prost(string, tag = "3")]
     pub cell_address: ::prost::alloc::string::String,
     #[prost(string, tag = "4")]
@@ -168,6 +166,11 @@ pub struct Placement {
     pub size: ::core::option::Option<Resources>,
     #[prost(uint32, tag = "8")]
     pub timeout_secs: u32,
+    /// The cell's own name, <instance>.<zone>.<subenv>.<env>.cells.clovelly.internal: the
+    /// TLS server name and HTTP/2 authority the SDK dials cell_address with, which the
+    /// relay routes by and the cell's certificate must carry.
+    #[prost(string, tag = "9")]
+    pub cell_name: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct LocateSandboxRequest {

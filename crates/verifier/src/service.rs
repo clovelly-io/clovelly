@@ -399,6 +399,7 @@ fn log_unlock(ev: &Evidence, client: &str, result: &Result<(crate::Unlocked, Rep
         "release": ev.release.as_str(),
         "instance_id": ev.instance_id.to_string(),
         "zone": ev.zone.as_str(),
+        "instance_name": ev.instance_name.as_str(),
         "client_ip": client,
         "ms": ms,
         "checks": report,

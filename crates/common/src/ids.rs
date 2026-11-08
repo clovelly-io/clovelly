@@ -1,7 +1,8 @@
 //! Identifiers that cross the trust boundary, parsed once at the edge.
 //!
-//! Environment, sub-environment and zone ids become parts of DNS names (the cell
-//! certificate's SAN is `<subenv>.<env>.cells.clovelly.internal`), so each is one DNS label:
+//! Environment, sub-environment and zone ids and instance names become parts of DNS names
+//! (the cell certificate's SANs are `<subenv>.<env>.cells.clovelly.internal` and
+//! `<instance>.<zone>.<subenv>.<env>.cells.clovelly.internal`), so each is one DNS label:
 //! 1 to 63 characters of `a-z`, `0-9` and `-`, not starting or ending with `-`. The
 //! marker type keeps them from being mixed up.
 
@@ -34,6 +35,9 @@ pub mod kind {
     /// A GCE zone, such as `us-central1-a`.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
     pub enum Zone {}
+    /// A GCE instance's name, such as `clovelly-0f3a…`: names one cell.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    pub enum Instance {}
 
     impl super::LabelKind for Env {
         const NAME: &'static str = "environment id";
@@ -43,6 +47,9 @@ pub mod kind {
     }
     impl super::LabelKind for Zone {
         const NAME: &'static str = "zone";
+    }
+    impl super::LabelKind for Instance {
+        const NAME: &'static str = "instance name";
     }
 }
 
@@ -56,6 +63,7 @@ pub struct Label<K> {
 pub type EnvId = Label<kind::Env>;
 pub type SubenvId = Label<kind::Subenv>;
 pub type Zone = Label<kind::Zone>;
+pub type InstanceName = Label<kind::Instance>;
 
 impl<K> Label<K> {
     pub fn as_str(&self) -> &str {

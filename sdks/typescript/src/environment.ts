@@ -137,14 +137,20 @@ export class Environment {
   }
 
   /**
-   * The cell at `address` serving sub-environment `subenv`, for talking to a cell directly.
-   * One connection per address and name, shared by every sandbox on it; a cell refused by
-   * verification is dropped and the next call dials afresh.
+   * The cell named `name` (`<instance>.<zone>.<subenv>.<envId>.cells.clovelly.internal`) of
+   * sub-environment `subenv`, through `address` (its region's relay), for talking to a cell
+   * directly. One connection per address and name, shared by every sandbox on it; a cell
+   * refused by verification is dropped and the next call dials afresh. A name outside
+   * `subenv` throws `InvalidRequest`.
    */
-  cell(address: string, subenv: string): Cell {
-    const serverName = `${label(subenv, "sub-environment id")}.${this.envId}.cells.clovelly.internal`;
-    // The name is part of the key: a connection verified for one sub-environment must never
-    // carry another's traffic.
+  cell(address: string, name: string, subenv: string): Cell {
+    const subenvId = label(subenv, "sub-environment id");
+    if (!isCellName(name, this.envId, subenvId)) {
+      throw invalidRequest(`cell name ${JSON.stringify(name)} is not <instance>.<zone>.${subenvId}.${this.envId}.cells.clovelly.internal`);
+    }
+    const serverName = name;
+    // The name is part of the key: every cell of a region shares the relay's address, and a
+    // connection verified for one cell must never carry another's traffic.
     const key = `${serverName} ${address}`;
     const cached = this.#cells.get(key);
     if (cached !== undefined && !cached.closed) return cached;
@@ -362,7 +368,7 @@ export class Environment {
    * then names the cell), for `sandboxId` when given, and well formed; `ProtocolError` if not.
    */
   #placed(placement: pb.Placement, subenvId: string | undefined, sandboxId?: SandboxId): { id: SandboxId; cell: Cell } {
-    const { envId, subenvId: placedSubenv, sandboxId: placedId, cellAddress } = placement;
+    const { envId, subenvId: placedSubenv, sandboxId: placedId, cellAddress, cellName } = placement;
     const what = `the control plane's placement of sandbox ${JSON.stringify(placedId)}`;
     if (envId !== this.envId) throw protocolError(`${what} is for environment ${JSON.stringify(envId)}, not ${this.envId}`);
     if (subenvId !== undefined && placedSubenv !== subenvId) {
@@ -372,7 +378,12 @@ export class Environment {
     if (!isSandboxId(placedId)) throw protocolError(`${what}: the id is not 32 lowercase hex characters`);
     if (sandboxId !== undefined && placedId !== sandboxId) throw protocolError(`${what} answers for another sandbox than ${sandboxId}`);
     if (!isAddress(cellAddress)) throw protocolError(`${what}: cell address ${JSON.stringify(cellAddress)} is not host:port`);
-    return { id: placedId, cell: this.cell(cellAddress, placedSubenv) };
+    // The name pins the sub-environment: a control plane naming another sub-environment's cell
+    // is refused here, before anything is dialled.
+    if (!isCellName(cellName, envId, placedSubenv)) {
+      throw protocolError(`${what}: cell name ${JSON.stringify(cellName)} is not <instance>.<zone>.${placedSubenv}.${envId}.cells.clovelly.internal`);
+    }
+    return { id: placedId, cell: this.cell(cellAddress, cellName, placedSubenv) };
   }
 
   /** The digest a sandbox's template resolves to; empty for the base bundle. */
@@ -480,6 +491,16 @@ function templateName(name: string): string {
 /** True for a DNS label (1-63 of a-z, 0-9, '-', no leading or trailing '-'), as the cell's SAN needs. */
 function isLabel(value: string): boolean {
   return /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/.test(value);
+}
+
+/** True for one cell's name in this environment and sub-environment: `<instance>.<zone>.<subenv>.<env>.cells.clovelly.internal`. */
+function isCellName(value: string, envId: string, subenvId: string): boolean {
+  const labels = value.split(".");
+  return (
+    labels.length === 7 &&
+    labels.slice(0, 2).every(isLabel) &&
+    labels.slice(2).join(".") === `${subenvId}.${envId}.cells.clovelly.internal`
+  );
 }
 
 /** Checks a caller's environment or sub-environment id; throws `InvalidRequest` if it is not a DNS label. */

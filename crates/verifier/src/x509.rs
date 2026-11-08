@@ -143,8 +143,10 @@ pub async fn make_ca(keys: &impl Keys, key: &str, env: &str, generation: Option<
 pub struct CellRequest<'a> {
     /// The cell's key (DER SubjectPublicKeyInfo).
     pub spki: &'a [u8],
-    /// The SAN, `<subenv>.<env>.cells.clovelly.internal`.
+    /// The first SAN and the subject's CN, `<subenv>.<env>.cells.clovelly.internal`.
     pub dns: &'a str,
+    /// The second SAN, the cell's own `<instance>.<zone>.<subenv>.<env>.cells.clovelly.internal`.
+    pub cell_name: &'a str,
     pub info: &'a CellCertInfo,
     pub now: u64,
     /// The end of the cell's lifetime.
@@ -161,6 +163,7 @@ pub async fn cell_cert(
     let CellRequest {
         spki,
         dns,
+        cell_name,
         info,
         now,
         not_after,
@@ -176,7 +179,10 @@ pub async fn cell_cert(
         extension(&KeyUsage(KeyUsages::DigitalSignature.into()), true)?,
         extension(&ExtendedKeyUsage(vec![KP_SERVER_AUTH]), false)?,
         extension(
-            &SubjectAltName(vec![GeneralName::DnsName(Ia5String::new(dns)?)]),
+            &SubjectAltName(vec![
+                GeneralName::DnsName(Ia5String::new(dns)?),
+                GeneralName::DnsName(Ia5String::new(cell_name)?),
+            ]),
             false,
         )?,
         extension(
@@ -307,6 +313,7 @@ mod tests {
         let req = CellRequest {
             spki: &cell_spki,
             dns: "bank-a.acme.cells.clovelly.internal",
+            cell_name: "clovelly-7f.us-central1-a.bank-a.acme.cells.clovelly.internal",
             info: &info,
             now,
             not_after: now + 3600,
@@ -320,9 +327,12 @@ mod tests {
         let (_, san) = tbs.get_extension::<SubjectAltName>().unwrap().unwrap();
         assert_eq!(
             san.0,
-            vec![GeneralName::DnsName(
-                Ia5String::new("bank-a.acme.cells.clovelly.internal").unwrap()
-            )]
+            vec![
+                GeneralName::DnsName(Ia5String::new("bank-a.acme.cells.clovelly.internal").unwrap()),
+                GeneralName::DnsName(
+                    Ia5String::new("clovelly-7f.us-central1-a.bank-a.acme.cells.clovelly.internal").unwrap()
+                ),
+            ]
         );
         let ext = tbs
             .extensions()

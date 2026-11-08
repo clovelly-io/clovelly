@@ -83,7 +83,10 @@ export class Sandbox {
   /** The access key, hex. With `id` it is all `Environment.reconnect` needs; keep it secret. */
   readonly key: string;
   readonly cellId: string;
+  /** The region's relay the sandbox's cell is reached through. */
   readonly cellAddress: string;
+  /** The cell's own name, which its connection is dialled and verified by. */
+  readonly cellName: string;
   readonly subenv: string;
   /** A cell had to be booted for this sandbox. */
   readonly cold: boolean;
@@ -104,6 +107,7 @@ export class Sandbox {
     this.key = init.key.toString("hex");
     this.cellId = init.cellId;
     this.cellAddress = init.cell.address;
+    this.cellName = init.cell.serverName;
     this.subenv = init.subenv;
     this.cold = init.cold;
     this.cpu = init.cpuHalves / 2;

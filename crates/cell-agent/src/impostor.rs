@@ -81,7 +81,7 @@ pub async fn run(mode: Mode, name: &str) -> anyhow::Result<()> {
         .with_single_cert(chain, key)?;
     config.alpn_protocols = vec![b"h2".to_vec()];
     let acceptor = TlsAcceptor::from(Arc::new(config));
-    tokio::spawn(crate::forwarded::keep_routes(Default::default(), Default::default()));
+    tokio::spawn(crate::forwarded::keep_routes());
     let listener = TcpListener::bind(("0.0.0.0", listener::PORT)).await?;
     status("impostor-serving", json!({ "mode": format!("{mode:?}"), "name": name }));
     loop {

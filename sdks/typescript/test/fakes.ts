@@ -32,17 +32,26 @@ export interface Pki {
   /** The environment CA, and the path of its PEM file. */
   ca: Buffer;
   caPath: string;
-  /** Issued by the environment CA for sub-environment a of environment staging. */
+  /** Issued by the environment CA for sub-environment a of environment staging and `CELL_1`, as the verifier issues a cell's. */
   cellA: KeyPair;
-  /** Issued by the environment CA, but for sub-environment b. */
+  /** The same for a second cell of sub-environment a, `CELL_2`. */
+  cellA2: KeyPair;
+  /** Issued by the environment CA, but for sub-environment b and `CELL_B`. */
   cellB: KeyPair;
-  /** Self-signed, naming sub-environment a. */
+  /** Issued by the environment CA for sub-environment a alone, as before phase 12. */
+  oldA: KeyPair;
+  /** Self-signed, naming sub-environment a and `CELL_1`. */
   selfSigned: KeyPair;
-  /** Issued by another environment's CA, naming sub-environment a. */
+  /** Issued by another environment's CA, naming sub-environment a and `CELL_1`. */
   otherCa: KeyPair;
   /** The control plane's: issued by the environment CA for localhost. */
   control: KeyPair;
 }
+
+/** Cells by their own names (phase 12): two of sub-environment a and one of b. */
+export const CELL_1 = "cell-1.us-central1-a.a.staging.cells.clovelly.internal";
+export const CELL_2 = "cell-2.us-central1-a.a.staging.cells.clovelly.internal";
+export const CELL_B = "cell-1.us-central1-a.b.staging.cells.clovelly.internal";
 
 const CONFIG = `
 [req]
@@ -52,8 +61,10 @@ distinguished_name = dn
 basicConstraints = critical,CA:TRUE
 keyUsage = critical,keyCertSign,cRLSign
 subjectKeyIdentifier = hash
-${leaf("subenv_a", "DNS:a.staging.cells.clovelly.internal")}
-${leaf("subenv_b", "DNS:b.staging.cells.clovelly.internal")}
+${leaf("subenv_a", `DNS:a.staging.cells.clovelly.internal,DNS:${CELL_1}`)}
+${leaf("subenv_a2", `DNS:a.staging.cells.clovelly.internal,DNS:${CELL_2}`)}
+${leaf("subenv_b", `DNS:b.staging.cells.clovelly.internal,DNS:${CELL_B}`)}
+${leaf("subenv_a_old", "DNS:a.staging.cells.clovelly.internal")}
 ${leaf("localhost", "DNS:localhost,IP:127.0.0.1")}
 `;
 
@@ -95,7 +106,9 @@ export function makePki(): Pki {
     ca: ca.cert,
     caPath: join(dir, "env-ca.pem"),
     cellA: issue("cell-a", "subenv_a", "env-ca"),
+    cellA2: issue("cell-a2", "subenv_a2", "env-ca"),
     cellB: issue("cell-b", "subenv_b", "env-ca"),
+    oldA: issue("old-a", "subenv_a_old", "env-ca"),
     selfSigned: selfSign("self-signed", "subenv_a"),
     otherCa: issue("other-ca-cell", "subenv_a", "other-ca"),
     control: issue("control", "localhost", "env-ca"),
@@ -342,7 +355,8 @@ export class FakeControl {
   /** The `authorization` header of every call. */
   readonly authorizations: string[] = [];
   readonly placements = new Map<string, pb.Placement>();
-  cells: { id: string; address: string }[] = [];
+  /** The cells PlaceSandbox places on; `name` defaults to cell-1 of the request's sub-environment. */
+  cells: { id: string; address: string; name?: string }[] = [];
   /** When set, PlaceSandbox refuses with it. */
   refusePlace: Status | undefined;
   /** The published regions PutPool accepts, and the pools it was given. */
@@ -409,6 +423,7 @@ export class FakeControl {
       sandboxId: randomBytes(16).toString("hex"),
       cellId: cell.id,
       cellAddress: cell.address,
+      cellName: cell.name ?? `cell-1.us-central1-a.${request.subenvId}.${request.envId}.cells.clovelly.internal`,
       envId: request.envId,
       subenvId: request.subenvId,
       cold: false,

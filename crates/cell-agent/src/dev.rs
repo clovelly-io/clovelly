@@ -193,5 +193,6 @@ fn dev_evidence(env: &str, subenv: &str) -> anyhow::Result<common::evidence::Evi
         nonce: common::evidence::Nonce([0; 32]),
         instance_id: 0,
         zone: "dev".parse()?,
+        instance_name: "dev".parse()?,
     })
 }

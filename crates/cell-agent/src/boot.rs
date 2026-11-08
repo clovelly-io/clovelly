@@ -22,7 +22,7 @@ use aws_lc_rs::encoding::{AsBigEndian, AsDer, EcPrivateKeyBin, EcPrivateKeyRfc59
 use common::ccel::{self, EventLog};
 use common::dek::{self, Dek};
 use common::evidence::{self, Evidence, Nonce, Spki};
-use common::ids::{EnvId, ReleaseId, SubenvId, Zone};
+use common::ids::{EnvId, InstanceName, ReleaseId, SubenvId, Zone};
 use common::sandbox::MAX_CELL_CAP;
 use common::tdx::{Measurement, Quote, ReportData};
 
@@ -200,6 +200,8 @@ pub struct BootConfig {
     pub release: ReleaseId,
     pub instance_id: u64,
     pub zone: Zone,
+    /// The GCE instance's name: with the zone, it names the cell in its certificate.
+    pub instance_name: InstanceName,
     /// The project's number, for receipts.
     pub project: String,
     pub deadline: Duration,
@@ -249,6 +251,7 @@ impl BootConfig {
         let id = metadata::get("instance/id")?.ok_or(ConfigError::Missing("instance/id"))?;
         let zone = metadata::get("instance/zone")?.ok_or(ConfigError::Missing("instance/zone"))?;
         let zone = zone.rsplit('/').next().unwrap_or_default().to_owned();
+        let name = metadata::get("instance/name")?.ok_or(ConfigError::Missing("instance/name"))?;
         let release = std::fs::read_to_string(RELEASE_PATH).map_err(ConfigError::Release)?;
         let deadline = match metadata::attribute("clovelly-unlock-timeout")? {
             Some(s) => Duration::from_secs(s.trim().parse().map_err(|_| parse("clovelly-unlock-timeout", &s))?),
@@ -275,6 +278,7 @@ impl BootConfig {
             release: release.trim().parse().map_err(|_| parse("release", &release))?,
             instance_id: id.trim().parse().map_err(|_| parse("instance/id", &id))?,
             zone: zone.parse().map_err(|_| parse("instance/zone", &zone))?,
+            instance_name: name.trim().parse().map_err(|_| parse("instance/name", &name))?,
             project: project.trim().to_owned(),
             deadline,
             control_plane: metadata::attribute("clovelly-control-plane")?.map(|s| s.trim().to_owned()),
@@ -423,6 +427,7 @@ async fn attempt(
         nonce,
         instance_id: cfg.instance_id,
         zone: cfg.zone.clone(),
+        instance_name: cfg.instance_name.clone(),
     };
     let granted = match api.unlock(&ev).await {
         Ok(g) => g,

@@ -39,7 +39,7 @@ verifier. Physical attacks on the CPU (TEE.fail, DDRop) are out of scope.
 ## What a cell must prove, and how
 
 A cell sends a quote, its CC event log (CCEL), and claims: environment, sub-environment,
-release, its public key, the nonce, and its GCE instance id and zone. All ten checks run
+release, its public key, the nonce, and its GCE instance id, zone and name. All ten checks run
 on every request and every outcome is logged; the cell is told only the number of the
 first check that failed.
 
@@ -59,6 +59,27 @@ first check that failed.
 | Serve a cell a different policy bundle | Bundles are signed by the customer's policy key and name their environment and sub-environment; the cell refuses a bundle that does not verify, is for another scope, has expired or is older than the one in force, and then creates no sandbox until it gets one it accepts. `GetPolicy` is open: a bundle is not secret. |
 | Plant or swap a credential | `SealCredential` needs the SDK token. The ciphertext's associated data names the environment, sub-environment, credential, adapter type and destination, so whoever stores it (the control plane) cannot move it to another name or host, and a cell releases it only for the destination and adapter its policy uses there. |
 | Lie in metadata (environment, sub-environment, instance id, zone) | Each claim is bound by a check: env by REPORTDATA, instance and zone by MR_OWNER. The sub-environment only selects which DEK is sealed to the cell; a cell of the right environment asking for another sub-environment's DEK gets a certificate that names that sub-environment. |
+| Lie about the instance name | Nothing binds it to the quote, and nothing needs to. It only names the cell in its certificate's second SAN, `<instance>.<zone>.<subenv>.<env>.cells.clovelly.internal`; the zone in that name passed check 7, and a name that is not one DNS label is refused before any check runs. An unattested machine gets no certificate at all, and an attested cell of the sub-environment that claimed another cell's name already holds a certificate from the same CA and the same DEKs as that cell, so the name gains it nothing it did not have. |
+
+## The relay in front of the cells
+
+Cells have no address of their own on the internet. Each region has one static address (listed in
+[regions.md](regions.md)) in front of a relay we operate: two small VMs running HAProxy in TCP mode. The SDK dials
+that address with the cell's own name as the TLS server name; the relay reads the name from the TLS ClientHello,
+takes its first two labels (instance and zone), looks the instance up in Google's internal DNS and copies bytes
+between the client and that cell's port 443. It terminates no TLS and holds no key or credential (its VMs run with
+no service account), so the TLS session is between the SDK and the cell, and the SDK checks the cell's certificate
+against the environment CA exactly as it would without the relay.
+
+| Attack (by us, through the relay) | Stopped by |
+|---|---|
+| Read or change a sandbox's traffic | TLS end to end between the SDK and the cell. The relay sees ciphertext. |
+| Send a connection to another cell, or to a machine of ours | The certificate must chain to the customer's environment CA and carry the cell name the SDK dialled, which the SDK checked is under the expected sub-environment. Another cell's certificate names another cell, and no machine of ours has a certificate from the customer's CA. The SDK refuses the handshake (`name_mismatch`, `untrusted_certificate`) and sends nothing. The network also lets the relay's VMs reach only cells, and only on port 443. |
+| Refuse or cut connections | The SDK sees a transport error and retries; this is denial of service, which we can always do. |
+
+What the relay learns: which cell each connection is for (the name in the handshake, which the control plane that
+placed the sandbox already knows), when, and how many bytes went each way. It logs those and the outcome, and nothing
+else: no client address and no content. The customer's network sees the region's relay address, not the cell's.
 
 ### The kernel command line
 

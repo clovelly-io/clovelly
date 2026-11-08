@@ -157,7 +157,7 @@ class PoolStatus(_message.Message):
     def __init__(self, pool: _Optional[_Union[Pool, _Mapping]] = ..., cells: _Optional[_Iterable[_Union[CellStatus, _Mapping]]] = ...) -> None: ...
 
 class CellStatus(_message.Message):
-    __slots__ = ("cell_id", "zone", "instance_name", "state", "address", "release_id", "create_called_unix_ms", "ready_unix_ms", "deleted_unix_ms", "cell_end_unix", "sandbox_count", "unreserved", "recycle_reason", "forwarding_rule", "cpu_share")
+    __slots__ = ("cell_id", "zone", "instance_name", "state", "address", "release_id", "create_called_unix_ms", "ready_unix_ms", "deleted_unix_ms", "cell_end_unix", "sandbox_count", "unreserved", "recycle_reason", "cpu_share")
     CELL_ID_FIELD_NUMBER: _ClassVar[int]
     ZONE_FIELD_NUMBER: _ClassVar[int]
     INSTANCE_NAME_FIELD_NUMBER: _ClassVar[int]
@@ -171,7 +171,6 @@ class CellStatus(_message.Message):
     SANDBOX_COUNT_FIELD_NUMBER: _ClassVar[int]
     UNRESERVED_FIELD_NUMBER: _ClassVar[int]
     RECYCLE_REASON_FIELD_NUMBER: _ClassVar[int]
-    FORWARDING_RULE_FIELD_NUMBER: _ClassVar[int]
     CPU_SHARE_FIELD_NUMBER: _ClassVar[int]
     cell_id: str
     zone: str
@@ -186,9 +185,8 @@ class CellStatus(_message.Message):
     sandbox_count: int
     unreserved: Resources
     recycle_reason: str
-    forwarding_rule: str
     cpu_share: int
-    def __init__(self, cell_id: _Optional[str] = ..., zone: _Optional[str] = ..., instance_name: _Optional[str] = ..., state: _Optional[str] = ..., address: _Optional[str] = ..., release_id: _Optional[str] = ..., create_called_unix_ms: _Optional[int] = ..., ready_unix_ms: _Optional[int] = ..., deleted_unix_ms: _Optional[int] = ..., cell_end_unix: _Optional[int] = ..., sandbox_count: _Optional[int] = ..., unreserved: _Optional[_Union[Resources, _Mapping]] = ..., recycle_reason: _Optional[str] = ..., forwarding_rule: _Optional[str] = ..., cpu_share: _Optional[int] = ...) -> None: ...
+    def __init__(self, cell_id: _Optional[str] = ..., zone: _Optional[str] = ..., instance_name: _Optional[str] = ..., state: _Optional[str] = ..., address: _Optional[str] = ..., release_id: _Optional[str] = ..., create_called_unix_ms: _Optional[int] = ..., ready_unix_ms: _Optional[int] = ..., deleted_unix_ms: _Optional[int] = ..., cell_end_unix: _Optional[int] = ..., sandbox_count: _Optional[int] = ..., unreserved: _Optional[_Union[Resources, _Mapping]] = ..., recycle_reason: _Optional[str] = ..., cpu_share: _Optional[int] = ...) -> None: ...
 
 class PlaceSandboxRequest(_message.Message):
     __slots__ = ("env_id", "subenv_id", "size", "timeout_secs", "avoid_cells")
@@ -205,7 +203,7 @@ class PlaceSandboxRequest(_message.Message):
     def __init__(self, env_id: _Optional[str] = ..., subenv_id: _Optional[str] = ..., size: _Optional[_Union[Resources, _Mapping]] = ..., timeout_secs: _Optional[int] = ..., avoid_cells: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class Placement(_message.Message):
-    __slots__ = ("sandbox_id", "cell_id", "cell_address", "env_id", "subenv_id", "cold", "size", "timeout_secs")
+    __slots__ = ("sandbox_id", "cell_id", "cell_address", "env_id", "subenv_id", "cold", "size", "timeout_secs", "cell_name")
     SANDBOX_ID_FIELD_NUMBER: _ClassVar[int]
     CELL_ID_FIELD_NUMBER: _ClassVar[int]
     CELL_ADDRESS_FIELD_NUMBER: _ClassVar[int]
@@ -214,6 +212,7 @@ class Placement(_message.Message):
     COLD_FIELD_NUMBER: _ClassVar[int]
     SIZE_FIELD_NUMBER: _ClassVar[int]
     TIMEOUT_SECS_FIELD_NUMBER: _ClassVar[int]
+    CELL_NAME_FIELD_NUMBER: _ClassVar[int]
     sandbox_id: str
     cell_id: str
     cell_address: str
@@ -222,7 +221,8 @@ class Placement(_message.Message):
     cold: bool
     size: Resources
     timeout_secs: int
-    def __init__(self, sandbox_id: _Optional[str] = ..., cell_id: _Optional[str] = ..., cell_address: _Optional[str] = ..., env_id: _Optional[str] = ..., subenv_id: _Optional[str] = ..., cold: bool = ..., size: _Optional[_Union[Resources, _Mapping]] = ..., timeout_secs: _Optional[int] = ...) -> None: ...
+    cell_name: str
+    def __init__(self, sandbox_id: _Optional[str] = ..., cell_id: _Optional[str] = ..., cell_address: _Optional[str] = ..., env_id: _Optional[str] = ..., subenv_id: _Optional[str] = ..., cold: bool = ..., size: _Optional[_Union[Resources, _Mapping]] = ..., timeout_secs: _Optional[int] = ..., cell_name: _Optional[str] = ...) -> None: ...
 
 class LocateSandboxRequest(_message.Message):
     __slots__ = ("sandbox_id",)

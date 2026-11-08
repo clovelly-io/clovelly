@@ -25,7 +25,8 @@ which you may allowlist. They still authenticate by attestation and by nothing a
 
 The console walks you through this when you create an environment, with your environment id in every
 command. Environment and sub-environment ids are lower-case DNS labels: cells of sub-environment `main`
-get certificates for `main.MY_ENV.cells.clovelly.internal`.
+get certificates for `main.MY_ENV.cells.clovelly.internal` and for each cell's own name,
+`<instance>.<zone>.main.MY_ENV.cells.clovelly.internal`, which the SDK dials it by.
 
 1. **Choose the images.** Pull by digest. The digests are on the
    [release page](https://github.com/clovelly-io/clovelly/releases) and in the signed payload logged in

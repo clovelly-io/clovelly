@@ -41,6 +41,12 @@ pub struct Evidence {
     pub instance_id: u64,
     #[prost(string, tag = "10")]
     pub zone: ::prost::alloc::string::String,
+    /// GCE instance name, from instance metadata (one DNS label). Nothing binds it to the
+    /// quote: it only names the cell in its certificate's second SAN,
+    /// <instance>.<zone>.<subenv>.<env>.cells.clovelly.internal, which the relay in front
+    /// of the region's cells routes by.
+    #[prost(string, tag = "11")]
+    pub instance_name: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct UnlockRequest {
@@ -49,8 +55,9 @@ pub struct UnlockRequest {
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct UnlockResponse {
-    /// DER certificate for the cell key, issued by the environment CA, SAN
-    /// <subenv>.<env>.cells.clovelly.internal.
+    /// DER certificate for the cell key, issued by the environment CA, with two SANs:
+    /// <subenv>.<env>.cells.clovelly.internal and the cell's own
+    /// <instance>.<zone>.<subenv>.<env>.cells.clovelly.internal.
     #[prost(bytes = "vec", tag = "1")]
     pub cell_cert: ::prost::alloc::vec::Vec<u8>,
     /// The sub-environment DEK, HPKE-sealed to the cell key: encapsulated key (65 bytes)

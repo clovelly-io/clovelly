@@ -56,7 +56,7 @@ const NAMES: [&str; 3] = ["dest.clovelly.test", "*.sslip.io", "*.nip.io"];
 pub const ECHO: &str = "/clovelly.test.Echo/Stream";
 
 pub async fn run() -> anyhow::Result<()> {
-    tokio::spawn(crate::forwarded::keep_routes(Default::default(), Default::default()));
+    tokio::spawn(crate::forwarded::keep_routes());
     let (cert, acceptor) = certificate()?;
     let fingerprint = common::hex(digest::digest(&digest::SHA256, &cert).as_ref());
     println!(

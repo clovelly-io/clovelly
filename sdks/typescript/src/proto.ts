@@ -155,7 +155,10 @@ export interface PlaceSandboxRequest {
 export interface Placement {
   sandboxId: string;
   cellId: string;
+  /** The region's relay, `host:port`: every cell of the region shares it. */
   cellAddress: string;
+  /** The cell's own name, `<instance>.<zone>.<subenv>.<env>.cells.clovelly.internal`. */
+  cellName: string;
   envId: string;
   subenvId: string;
   cold: boolean;

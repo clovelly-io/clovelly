@@ -45,7 +45,9 @@ env.close();
 
 - `caBundle`: the environment CA, as PEM (string or Buffer) or a path to a PEM file. It is
   the only trust anchor for cells.
-- `envId`: a DNS label. It names the cells: `<subenv>.<envId>.cells.clovelly.internal`.
+- `envId`: a DNS label. It names the cells: each cell's certificate carries
+  `<subenv>.<envId>.cells.clovelly.internal` and the cell's own
+  `<instance>.<zone>.<subenv>.<envId>.cells.clovelly.internal`.
 - `verifierUrl`: your verifier, `https://host[:port]`. The SDK calls it to seal credentials
   and template keys and to read the receipt log, always with the SDK token
   `verifierToken`. `verifierCa` (PEM or a path) replaces the system roots for its
@@ -66,8 +68,9 @@ resolves to a `Sandbox`.
 - A cell that refuses with `CAPACITY`, `CROSSES_CELL_END`, `CROSSES_RELEASE_EXPIRY`,
   `DRAINING` or `REVOKED` is added to `avoidCells` and the sandbox is placed again, at most
   3 placements in all.
-- A placement must be for this environment and `subenv`, with a 32-hex sandbox id and a
-  `host:port` cell address. Otherwise the SDK throws `ProtocolError`.
+- A placement must be for this environment and `subenv`, with a 32-hex sandbox id, a
+  `host:port` cell address (the region's relay) and a cell name under that sub-environment.
+  Otherwise the SDK throws `ProtocolError`.
 - Every placement that does not become the sandbox is released with `ReleaseSandbox`, best
   effort. That covers a cell refusal, a failed verification and any other error before the
   sandbox exists.
@@ -107,8 +110,9 @@ Methods:
 - `close()` kills the sandbox and returns its final receipt (the one it ended with if it had
   already ended). It then calls `ReleaseSandbox` on the control plane, best effort.
 
-`env.cell(address, subenv)` returns a low-level `Cell` for tests that talk to a cell
-directly. It has `verify()` and the raw RPCs: `createSandbox`, `exec`, `readFile`,
+`env.cell(address, name, subenv)` returns a low-level `Cell` for tests that talk to a cell
+directly, by its region's relay address and its own name (`sandbox.cellAddress` and
+`sandbox.cellName`). It has `verify()` and the raw RPCs: `createSandbox`, `exec`, `readFile`,
 `writeFile`, `kill` and `getReceipt`. Each raw RPC verifies the cell first.
 
 ## Environment variables
@@ -239,13 +243,15 @@ These are enforced and cannot be turned off.
 
 - Each cell has one gRPC channel, cached by address and expected name and shared by every
   sandbox on that cell. gRPC multiplexes their streams.
-- The channel uses `grpc.credentials.createSsl(envCa)` with `grpc.ssl_target_name_override`
-  and `grpc.default_authority` set to `<subenv>.<envId>.cells.clovelly.internal`. The SDK takes
-  `subenv` from the caller and refuses a placement for any other. The one exception is
-  `reconnect` called without `subenv`, which uses the sub-environment the control plane
-  reports for the sandbox. The cell's certificate
-  must chain to the environment CA and name that host under standard hostname
-  verification. There are no custom certificate callbacks (SPEC decision 2).
+- The channel dials the region's relay with `grpc.credentials.createSsl(envCa)` and
+  `grpc.ssl_target_name_override` and `grpc.default_authority` set to the cell's own name,
+  `<instance>.<zone>.<subenv>.<envId>.cells.clovelly.internal`. The relay routes by that name
+  and terminates nothing. The SDK takes `subenv` from the caller and refuses a placement for
+  any other, or whose cell name is not under it. The one exception is `reconnect` called
+  without `subenv`, which uses the sub-environment the control plane reports for the
+  sandbox. The cell's certificate must chain to the environment CA and carry that name under
+  standard hostname verification, so a connection delivered to any other cell is refused.
+  There are no custom certificate callbacks (SPEC decision 2).
 - Before any RPC that carries data, the SDK sends a `grpc.health.v1.Health/Check` probe with
   an empty request and a 15 s deadline, and retries it while connecting. gRPC sends even
   this probe only after the TLS handshake has verified the certificate. If the cell is

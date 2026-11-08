@@ -74,6 +74,11 @@ message Evidence {
   // GCE instance id and zone, from instance metadata; MR_OWNER binds them.
   uint64 instance_id = 9;
   string zone = 10;
+  // GCE instance name, from instance metadata (one DNS label). Nothing binds it to the
+  // quote: it only names the cell in its certificate's second SAN,
+  // <instance>.<zone>.<subenv>.<env>.cells.clovelly.internal, which the relay in front
+  // of the region's cells routes by.
+  string instance_name = 11;
 }
 
 message UnlockRequest {
@@ -81,8 +86,9 @@ message UnlockRequest {
 }
 
 message UnlockResponse {
-  // DER certificate for the cell key, issued by the environment CA, SAN
-  // <subenv>.<env>.cells.clovelly.internal.
+  // DER certificate for the cell key, issued by the environment CA, with two SANs:
+  // <subenv>.<env>.cells.clovelly.internal and the cell's own
+  // <instance>.<zone>.<subenv>.<env>.cells.clovelly.internal.
   bytes cell_cert = 1;
   // The sub-environment DEK, HPKE-sealed to the cell key: encapsulated key (65 bytes)
   // followed by the AES-256-GCM ciphertext and tag.
