@@ -115,6 +115,8 @@ pub async fn run(args: &[String]) -> anyhow::Result<()> {
         },
         placeable,
         Identity {
+            // The dev server shares no CPU: its capacity is the machine's placeable size.
+            cpu_share: common::sandbox::CpuShare::DEDICATED,
             env: env.parse()?,
             subenv: subenv.parse()?,
             release: "clovelly-dev".parse()?,

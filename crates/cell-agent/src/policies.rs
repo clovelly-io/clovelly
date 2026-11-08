@@ -14,6 +14,12 @@
 //! the cell accepts: the verifier's latest word is a bundle the cell cannot trust, so
 //! it admits nothing rather than guess. An unreachable verifier changes nothing.
 //! Running sandboxes keep the bundle they were created under.
+//!
+//! One refusal is different: a refreshed bundle whose `cpu_share` is bad (0, above the
+//! maximum, not an integer) is logged (`policy-ignored`) and kept out with the bundle in
+//! force left in force (SPEC.md phase 13). The cell's sharing factor was fixed at the
+//! unlock and no refresh changes it, so the bad value could never take effect anyway; at
+//! the unlock, where there is no bundle in force, such a bundle is refused as any other.
 
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime};
@@ -103,6 +109,9 @@ impl Policies {
                     status("policy-applied", json!({ "from": from, "version": p.version, "hash": p.hash_hex() }));
                 }
                 state.refused = None;
+            }
+            Err(e @ BundleError::CpuShare(_)) if state.current.is_some() => {
+                status("policy-ignored", json!({ "from": from, "kind": e.kind(), "reason": e.to_string() }));
             }
             Err(e) => {
                 if state.refused.as_deref() != Some(&e.to_string()) {
@@ -212,6 +221,39 @@ mod tests {
 
         assert!(p.offer(&v1, &sign(&kp, &v1), "poll").is_err(), "an older version is a rollback");
         assert!(p.current().unwrap_err().starts_with("rollback"));
+    }
+
+    fn bundle_with_share(version: u64, share: &str) -> Vec<u8> {
+        let b = String::from_utf8(bundle(version, 3600, "[]")).unwrap();
+        b.replacen(r#""destinations""#, &format!(r#""cpu_share":{share},"destinations""#), 1).into_bytes()
+    }
+
+    /// Phase 13 criterion 1: a bad `cpu_share` is refused at the unlock, like any bad
+    /// bundle; on a refresh it is ignored and the bundle in force stays in force, so new
+    /// sandboxes go on being created. A good refreshed value is accepted (the cell's own
+    /// factor, fixed at the unlock, is the agent's business).
+    #[test]
+    fn a_bad_cpu_share_is_refused_at_unlock_and_ignored_on_refresh() {
+        let (kp, pem) = signer();
+        let p = policies(&pem);
+        let bad = bundle_with_share(1, "5");
+        let e = p.offer(&bad, &sign(&kp, &bad), "unlock").unwrap_err();
+        assert!(matches!(e, BundleError::CpuShare(_)), "{e}");
+        assert!(p.current().unwrap_err().starts_with("cpu_share: policy bundle cpu_share 5"), "{:?}", p.current().err());
+
+        let p = policies(&pem);
+        let v1 = bundle_with_share(1, "4");
+        p.offer(&v1, &sign(&kp, &v1), "unlock").unwrap();
+        assert_eq!(p.current().unwrap().cpu_share.get(), 4);
+        for (version, share) in [(2, "0"), (3, "2.5"), (4, "9")] {
+            let b = bundle_with_share(version, share);
+            assert!(matches!(p.offer(&b, &sign(&kp, &b), "poll"), Err(BundleError::CpuShare(_))));
+            let c = p.current().expect("the previous bundle stays in force");
+            assert_eq!((c.version, c.cpu_share.get()), (1, 4));
+        }
+        let v5 = bundle_with_share(5, "1");
+        p.offer(&v5, &sign(&kp, &v5), "poll").unwrap();
+        assert_eq!(p.current().unwrap().cpu_share.get(), 1);
     }
 
     /// Criterion 11: a policy key rotates with no refused bundle. Bundles signed by the

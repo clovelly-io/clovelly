@@ -13,7 +13,11 @@
 //! `kill-proxy` kills the egress proxy (criteria 7 and 13); `kill-runsc <id>[,<id>...]`
 //! kills those sandboxes' runsc sandbox processes, a runsc crash (criterion 7); `templates`
 //! reports the template cache: overlay roots, their unpacked sizes and how many
-//! sandboxes use each (criterion 1). The driver sets markers and judges the results.
+//! sandboxes use each (criterion 1); `cgroups [<seconds>]` reports the cgroup values of
+//! the `clovelly` parent and of every sandbox, each distinct sandbox value set once with
+//! how many sandboxes have it, and with `<seconds>` each sandbox's CPU over that window
+//! from `cpu.stat` (phase 13 criteria 2 and 3). The driver sets markers and judges the
+//! results.
 //! A `CLOVELLY-HEARTBEAT <unix ms> <boot id>` line every second marks when the cell last
 //! ran, and in which boot. A `CLOVELLY-RSS {agent_kib, proxy_kib, at}` line every minute
 //! gives the two processes' resident memory, for the soak (phase 6 criterion 3).
@@ -158,6 +162,7 @@ fn scans_on_request(pid: u32) {
                 Err(e) => json!({ "sandbox": id, "error": e.to_string() }),
             }).collect::<Vec<_>>() })),
             "templates" => templates(),
+            "cgroups" => cgroups(arg),
             other => Ok(json!({ "error": format!("unknown request kind {other}") })),
         };
         let mut line = result.unwrap_or_else(|e| json!({ "error": e.to_string() }));
@@ -166,6 +171,45 @@ fn scans_on_request(pid: u32) {
         line["ms"] = json!(started.elapsed().as_millis() as u64);
         println!("CLOVELLY-SCAN {line}");
     }
+}
+
+/// The `cgroups [<seconds>]` request.
+fn cgroups(window: &str) -> std::io::Result<serde_json::Value> {
+    let err = |e: crate::cgroup::CgroupError| std::io::Error::other(e.to_string());
+    let window = match window {
+        "" => None,
+        s => Some(s.parse::<u64>().map_err(|_| std::io::Error::other("the window is whole seconds"))?),
+    };
+    let before = crate::cgroup::snapshot().map_err(err)?;
+    let mut sets: std::collections::BTreeMap<String, u64> = std::collections::BTreeMap::new();
+    for (_, v) in &before.sandboxes {
+        *sets.entry(format!("cpu.max={} cpu.weight={} memory.max={}", v.cpu_max, v.cpu_weight, v.memory_max)).or_default() += 1;
+    }
+    let p = &before.parent;
+    let mut out = json!({
+        "parent": { "cpu.max": p.cpu_max, "cpu.weight": p.cpu_weight, "memory.max": p.memory_max },
+        "sandboxes": before.sandboxes.len(),
+        "values": sets,
+    });
+    if let Some(secs) = window {
+        let started = std::time::Instant::now();
+        std::thread::sleep(std::time::Duration::from_secs(secs));
+        let after = crate::cgroup::snapshot().map_err(err)?;
+        let wall_us = started.elapsed().as_micros() as f64;
+        let then: std::collections::HashMap<&str, u64> = before.sandboxes.iter().map(|(id, v)| (id.as_str(), v.usage_usec)).collect();
+        // vCPU used by each sandbox present at both ends, in thousandths, sorted.
+        let mut used: Vec<u64> = after
+            .sandboxes
+            .iter()
+            .filter_map(|(id, v)| then.get(id.as_str()).map(|u0| ((v.usage_usec.saturating_sub(*u0)) as f64 * 1000.0 / wall_us) as u64))
+            .collect();
+        used.sort_unstable();
+        let parent_millis = (after.parent.usage_usec.saturating_sub(before.parent.usage_usec)) as f64 * 1000.0 / wall_us;
+        out["window_ms"] = json!((wall_us / 1000.0) as u64);
+        out["parent_millis"] = json!(parent_millis as u64);
+        out["sandbox_millis"] = json!(used);
+    }
+    Ok(out)
 }
 
 /// A process's resident memory in KiB.

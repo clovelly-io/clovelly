@@ -6,6 +6,7 @@
 //! { "v": 1, "env": "staging", "subenv": "a", "version": 7, "expires": 1793102400,
 //!   "sandbox": { "default": { "cpu": 1, "memory": 2 },
 //!                "max": { "cpu": 7, "memory": 27, "timeout": 86400 } },
+//!   "cpu_share": 1,
 //!   "resolvers": [ { "ip": "1.1.1.1", "name": "cloudflare-dns.com" } ],
 //!   "templates": [ "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08" ],
 //!   "destinations": [
@@ -19,7 +20,8 @@
 //! expiry and every destination, and refuses the whole bundle on any failure: an unknown
 //! field or adapter type, a wildcard or passthrough destination with an adapter, a path
 //! rule on a passthrough destination, a template digest that is malformed or listed
-//! twice. Default deny: no destinations allow nothing.
+//! twice, a `cpu_share` that is not an integer from 1 to [`CpuShare::MAX`]
+//! ([`BundleError::CpuShare`]). Default deny: no destinations allow nothing.
 //!
 //! The egress proxy runs in its own process, which holds no policy key: the agent hands
 //! it the bytes of a policy it verified ([`Policy::bytes`]) and the proxy rebuilds the
@@ -40,7 +42,7 @@ use serde::Deserialize;
 use crate::cred::{AdapterType, CredName};
 use crate::ids::{EnvId, SubenvId};
 use crate::jws::{self, JwsError, TrustedKey};
-use crate::sandbox::{Limits, LimitsError, Size};
+use crate::sandbox::{CpuShare, CpuShareError, Limits, LimitsError, Size};
 use crate::template::Digest;
 
 /// The DNS-over-TLS resolvers the proxy uses when a bundle names none (the image's
@@ -328,6 +330,8 @@ pub enum BundleError {
     Templates { entry: String, why: &'static str },
     #[error(transparent)]
     Limits(#[from] LimitsError),
+    #[error("policy bundle {0}")]
+    CpuShare(#[from] CpuShareError),
 }
 
 impl BundleError {
@@ -342,6 +346,7 @@ impl BundleError {
             BundleError::Invalid(_) => "invalid",
             BundleError::Templates { .. } => "templates",
             BundleError::Limits(_) => "limits",
+            BundleError::CpuShare(_) => "cpu_share",
         }
     }
 }
@@ -354,6 +359,9 @@ pub struct Policy {
     pub version: u64,
     pub expires: SystemTime,
     pub limits: Limits,
+    /// The sub-environment's CPU sharing factor; a cell reads it from the bundle it
+    /// unlocks with and keeps it for its life.
+    pub cpu_share: CpuShare,
     pub resolvers: Vec<Resolver>,
     pub destinations: Vec<Destination>,
     /// The templates a cell of the sub-environment pre-pulls into its cache (boot step
@@ -376,6 +384,10 @@ struct Wire {
     // Read by `Limits::from_bundle`; named here so `deny_unknown_fields` accepts it.
     #[serde(default, rename = "sandbox")]
     _sandbox: Option<serde_json::Value>,
+    // Any JSON value, so that a malformed one is refused as `BundleError::CpuShare`, naming
+    // the field, rather than as a JSON error; `null` is the field unset.
+    #[serde(default)]
+    cpu_share: Option<serde_json::Value>,
     #[serde(default)]
     resolvers: Vec<WireResolver>,
     destinations: Vec<WireDestination>,
@@ -490,6 +502,7 @@ impl Policy {
             }
         };
         let limits = Limits::from_bundle(bundle, placeable)?;
+        let cpu_share = w.cpu_share.as_ref().map_or(Ok(CpuShare::DEDICATED), CpuShare::from_json)?;
         let resolvers = w
             .resolvers
             .into_iter()
@@ -519,6 +532,7 @@ impl Policy {
             version: w.version,
             expires: UNIX_EPOCH + Duration::from_secs(w.expires),
             limits,
+            cpu_share,
             resolvers,
             destinations,
             templates,
@@ -707,6 +721,30 @@ pub(crate) mod tests {
 
     fn host(s: &str) -> Host {
         s.parse().unwrap()
+    }
+
+    /// Phase 13 criterion 1: `cpu_share` from 1 to the maximum is read into the policy (1
+    /// when absent); 0, above the maximum or a non-integer refuses the bundle with
+    /// `BundleError::CpuShare`, which names the field. The egress proxy's trusted parse
+    /// reads the same bytes.
+    #[test]
+    fn cpu_share_is_read_and_a_bad_one_refuses_the_bundle() {
+        let (kp, key) = key();
+        let with = |v: &str| bundle("[]").replacen(r#""destinations""#, &format!(r#""cpu_share":{v},"destinations""#), 1);
+        assert_eq!(verify(&kp, &key, &bundle("[]")).unwrap().cpu_share, CpuShare::DEDICATED);
+        for n in 1..=CpuShare::MAX.get() {
+            let p = verify(&kp, &key, &with(&n.to_string())).unwrap();
+            assert_eq!(p.cpu_share.get(), n);
+            assert_eq!(Policy::parse_trusted(p.bytes(), p.limits.max).unwrap().cpu_share.get(), n);
+        }
+        // `null` is the field left unset.
+        assert_eq!(verify(&kp, &key, &with("null")).unwrap().cpu_share, CpuShare::DEDICATED);
+        for bad in ["0", "5", "2.5", "-1", r#""3""#, "[3]"] {
+            let e = verify(&kp, &key, &with(bad)).unwrap_err();
+            assert!(matches!(e, BundleError::CpuShare(_)), "{bad}: {e}");
+            assert_eq!(e.kind(), "cpu_share");
+            assert!(e.to_string().starts_with("policy bundle cpu_share "), "{e}");
+        }
     }
 
     /// Criterion 13: `*.example.com` matches exactly one more label; `evil-example.com`,

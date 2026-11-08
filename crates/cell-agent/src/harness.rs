@@ -28,7 +28,7 @@ use crate::phase1;
 use crate::runsc::{Bind, Bundle, Cgroups, Network, NetworkMode, Runsc, Spec};
 use common::ids::SandboxId;
 use crate::stats::{Summary, ms};
-use crate::throughput::Scope;
+use crate::throughput::{FullCell, Scope};
 use crate::tsm;
 
 const BASE_ROOTFS: &str = "/run/clovelly/base/rootfs";
@@ -74,6 +74,8 @@ pub enum Test {
     ThroughputCell,
     /// Phase 11 criterion 11a: sandboxes sharing CPUs at 1x, 3x and 4x.
     Sharing,
+    /// Phase 13 criterion 8: `ThroughputCell` at a full cell shared at the maximum factor.
+    ThroughputShared,
     /// Phase 11 criterion 11b: the create path's profile and variants, at `--concurrency`.
     Profile,
 }
@@ -99,6 +101,7 @@ impl std::str::FromStr for Test {
             "clock" => Test::Clock,
             "throughput-cell" => Test::ThroughputCell,
             "sharing" => Test::Sharing,
+            "throughput-shared" => Test::ThroughputShared,
             "profile" => Test::Profile,
             other => bail!("unknown test {other:?}"),
         })
@@ -203,10 +206,14 @@ pub fn run(cfg: &Config) -> anyhow::Result<()> {
             Test::WrongUrl => phase1::wrong_url(&mut checks),
             Test::UnlockLatency => phase1::unlock_latency(&mut checks, &cfg.out, cfg.samples),
             Test::Egress => phase1::egress(&mut checks),
-            Test::Throughput | Test::ThroughputCell => match cfg.peer {
+            Test::Throughput | Test::ThroughputCell | Test::ThroughputShared => match cfg.peer {
                 Some(peer) => {
-                    let scope = if *test == Test::Throughput { Scope::Diagnose } else { Scope::Production };
-                    let r = crate::throughput::run(&mut checks, &cfg.out, peer, scope);
+                    let (scope, full_cell) = match test {
+                        Test::Throughput => (Scope::Diagnose, FullCell::DEDICATED),
+                        Test::ThroughputShared => (Scope::Production, FullCell::SHARED),
+                        _ => (Scope::Production, FullCell::DEDICATED),
+                    };
+                    let r = crate::throughput::run(&mut checks, &cfg.out, peer, scope, full_cell);
                     if let Err(e) = r {
                         checks.record("c8-throughput", Status::Fail, format!("{e:#}"));
                     }

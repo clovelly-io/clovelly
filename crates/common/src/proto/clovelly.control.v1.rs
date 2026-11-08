@@ -128,6 +128,9 @@ pub struct CellStatus {
     pub recycle_reason: ::prost::alloc::string::String,
     #[prost(string, tag = "14")]
     pub forwarding_rule: ::prost::alloc::string::String,
+    /// The CPU sharing factor the cell reported (1 is dedicated CPU); 0 before its first report.
+    #[prost(uint32, tag = "15")]
+    pub cpu_share: u32,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct PlaceSandboxRequest {
@@ -256,6 +259,11 @@ pub struct CellReport {
     /// not in it.
     #[prost(uint64, tag = "13")]
     pub egress_bytes: u64,
+    /// The sub-environment's CPU sharing factor (its policy bundle's cpu_share), read at the
+    /// unlock and fixed for the cell's life: unreserved_cpu_halves above already counts the
+    /// physical placeable CPU times this factor. 0 from a cell older than the field: 1.
+    #[prost(uint32, tag = "14")]
+    pub cpu_share: u32,
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct CellReportAck {}
@@ -753,6 +761,9 @@ pub struct CellRow {
     pub drain_state: ::prost::alloc::string::String,
     #[prost(uint64, tag = "11")]
     pub reported_unix_ms: u64,
+    /// The CPU sharing factor the cell reported (1 is dedicated CPU); 0 before its first report.
+    #[prost(uint32, tag = "12")]
+    pub cpu_share: u32,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ListCellsResponse {

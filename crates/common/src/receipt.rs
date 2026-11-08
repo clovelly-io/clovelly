@@ -10,6 +10,11 @@
 //! receipt was signed, whose environment, sub-environment or release differ from the
 //! certificate's, or whose measurements are not the published ones for its release.
 //!
+//! `cpu_share` (SPEC.md phase 13) is the CPU sharing factor the sandbox ran under: 1 is
+//! dedicated CPU, F means its guarantee was its CPU request divided by F among its own
+//! sub-environment's sandboxes. Receipts written before the field existed lack it and
+//! read as 1 ([`Verified::cpu_share`]); like every field it is covered by the signature.
+//!
 //! ```ignore
 //! let (json, sig) = receipt::sign(&doc, &cell_signing_key)?;          // cell
 //! let ok = receipt::verify(&json, &sig, &cell_cert, &ca_cert, &set)?;  // anyone
@@ -105,6 +110,8 @@ impl MeasurementSet {
 pub struct Verified {
     pub doc: Value,
     pub cert: CellCertInfo,
+    /// The receipt's `cpu_share`; 1 for a receipt without the field.
+    pub cpu_share: u32,
 }
 
 impl Verified {
@@ -260,7 +267,13 @@ pub fn verify(json: &[u8], sig: &[u8], cell_cert: &[u8], ca_cert: &[u8], set: &M
     if !published.mrtd.is_empty() && !published.mrtd.iter().any(|m| m.eq_ignore_ascii_case(mrtd)) {
         return Err(ReceiptError::Measurement { which: "mrtd".into(), got: mrtd.to_owned(), release: release.to_owned() });
     }
-    Ok(Verified { doc, cert: cert.info })
+    // Not bounded by today's maximum: a later release may allow more, and its receipts
+    // must still verify here.
+    let cpu_share = match doc.get("cpu_share") {
+        None => 1,
+        Some(v) => v.as_u64().and_then(|n| u32::try_from(n).ok()).filter(|&n| n >= 1).ok_or(ReceiptError::Field("cpu_share"))?,
+    };
+    Ok(Verified { doc, cert: cert.info, cpu_share })
 }
 
 /// Unix time `t` as the receipt's RFC 3339 form, e.g. `2026-10-26T12:00:00.123Z`.
@@ -364,7 +377,7 @@ mod tests {
             "measurements": {"mrtd": "dd", "rtmr": RTMR},
             "sandbox": {"id": "0123456789abcdef0123456789abcdef", "identity_spki": "MFkw", "template_digest": null,
                         "volume_id": null, "volume_epoch": null},
-            "policy_hash": "ph", "creds_released": ["openai"], "egress_log_hash": "eh", "egress_log_count": 2,
+            "policy_hash": "ph", "cpu_share": 3, "creds_released": ["openai"], "egress_log_hash": "eh", "egress_log_count": 2,
             "egress_gaps": [], "signed": "2026-10-27T12:00:10.000Z",
             "started": "2026-10-27T12:00:00.000Z", "ended": "2026-10-27T12:00:10.000Z",
             "exit": {"kind": "exited", "code": 0}
@@ -437,6 +450,28 @@ mod tests {
         let mut removed = original.clone();
         removed.as_object_mut().unwrap().remove("egress_log_hash");
         assert!(matches!(verify(&jcs::canonical(&removed).unwrap(), &sig, &cert, &ca.cert, &set()), Err(ReceiptError::Signature)));
+    }
+
+    /// Phase 13 criterion 7: a receipt carries its sandbox's sharing factor, and one written
+    /// before the field existed still verifies and reads as dedicated CPU.
+    #[test]
+    fn cpu_share_is_read_and_older_receipts_without_it_verify() {
+        let (ca, json, sig, cert) = signed();
+        assert_eq!(verify(&json, &sig, &cert, &ca.cert, &set()).unwrap().cpu_share, 3);
+
+        let at = parse_rfc3339("2026-10-27T12:00:10.000Z").unwrap();
+        let (key, cert) = ca.cell(&info(), at - 60, at + 3600);
+        let mut old = doc();
+        old.as_object_mut().unwrap().remove("cpu_share");
+        let (json, sig) = sign(&old, &key).unwrap();
+        assert_eq!(verify(&json, &sig, &cert, &ca.cert, &set()).unwrap().cpu_share, 1);
+
+        for bad in [json!(0), json!("3"), json!(-1)] {
+            let mut d = doc();
+            d["cpu_share"] = bad;
+            let (json, sig) = sign(&d, &key).unwrap();
+            assert!(matches!(verify(&json, &sig, &cert, &ca.cert, &set()), Err(ReceiptError::Field("cpu_share"))));
+        }
     }
 
     #[test]

@@ -9,6 +9,7 @@ use std::time::Duration;
 
 use common::proto::control::cell_channel_client::CellChannelClient;
 use common::proto::control::{CellReport, DrainState};
+use common::sandbox::CpuShare;
 use serde_json::json;
 use tokio::sync::watch;
 use tonic::transport::{Certificate, Channel, ClientTlsConfig};
@@ -31,6 +32,8 @@ pub struct Reported {
     pub drain: watch::Receiver<DrainState>,
     /// Serving and reachable: the forwarding rule's address is routed to the cell.
     pub ready: Arc<AtomicBool>,
+    /// The cell's sharing factor, fixed at the unlock; the unreserved CPU already counts it.
+    pub cpu_share: CpuShare,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -90,6 +93,7 @@ fn report(cfg: &BootConfig, r: &Reported, cpu: &mut CpuMeter) -> CellReport {
         drain_state: (*r.drain.borrow()).into(),
         release_id: cfg.release.to_string(),
         egress_bytes: r.sandboxes.egress_bytes(),
+        cpu_share: r.cpu_share.get(),
     }
 }
 

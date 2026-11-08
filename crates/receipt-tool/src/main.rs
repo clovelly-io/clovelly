@@ -19,7 +19,10 @@
 //! are that release's published ones. It does not rest on a quote in the receipt: the
 //! CA issued the certificate only after the customer's verifier checked the cell's
 //! quote against the same measurements. Prints one JSON line and exits 0 when the
-//! receipt verifies, 1 when it does not, 2 on a usage error.
+//! receipt verifies, 1 when it does not, 2 on a usage error. The line includes
+//! `cpu_share`, the CPU sharing factor the sandbox ran under: 1 for dedicated CPU and for
+//! a receipt written before the field existed, F when its sub-environment shared CPU
+//! among its own sandboxes (guarantee its CPU request divided by F).
 
 use std::path::Path;
 use std::process::ExitCode;
@@ -91,6 +94,7 @@ fn main() -> ExitCode {
                 "env": v.cert.env.as_str(),
                 "subenv": v.cert.subenv.as_str(),
                 "release": v.cert.release.as_str(),
+                "cpu_share": v.cpu_share,
                 "template_digest": d["sandbox"]["template_digest"],
                 "egress_log_hash": d["egress_log_hash"],
                 "signed": d["signed"],

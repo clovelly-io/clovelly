@@ -157,7 +157,7 @@ class PoolStatus(_message.Message):
     def __init__(self, pool: _Optional[_Union[Pool, _Mapping]] = ..., cells: _Optional[_Iterable[_Union[CellStatus, _Mapping]]] = ...) -> None: ...
 
 class CellStatus(_message.Message):
-    __slots__ = ("cell_id", "zone", "instance_name", "state", "address", "release_id", "create_called_unix_ms", "ready_unix_ms", "deleted_unix_ms", "cell_end_unix", "sandbox_count", "unreserved", "recycle_reason", "forwarding_rule")
+    __slots__ = ("cell_id", "zone", "instance_name", "state", "address", "release_id", "create_called_unix_ms", "ready_unix_ms", "deleted_unix_ms", "cell_end_unix", "sandbox_count", "unreserved", "recycle_reason", "forwarding_rule", "cpu_share")
     CELL_ID_FIELD_NUMBER: _ClassVar[int]
     ZONE_FIELD_NUMBER: _ClassVar[int]
     INSTANCE_NAME_FIELD_NUMBER: _ClassVar[int]
@@ -172,6 +172,7 @@ class CellStatus(_message.Message):
     UNRESERVED_FIELD_NUMBER: _ClassVar[int]
     RECYCLE_REASON_FIELD_NUMBER: _ClassVar[int]
     FORWARDING_RULE_FIELD_NUMBER: _ClassVar[int]
+    CPU_SHARE_FIELD_NUMBER: _ClassVar[int]
     cell_id: str
     zone: str
     instance_name: str
@@ -186,7 +187,8 @@ class CellStatus(_message.Message):
     unreserved: Resources
     recycle_reason: str
     forwarding_rule: str
-    def __init__(self, cell_id: _Optional[str] = ..., zone: _Optional[str] = ..., instance_name: _Optional[str] = ..., state: _Optional[str] = ..., address: _Optional[str] = ..., release_id: _Optional[str] = ..., create_called_unix_ms: _Optional[int] = ..., ready_unix_ms: _Optional[int] = ..., deleted_unix_ms: _Optional[int] = ..., cell_end_unix: _Optional[int] = ..., sandbox_count: _Optional[int] = ..., unreserved: _Optional[_Union[Resources, _Mapping]] = ..., recycle_reason: _Optional[str] = ..., forwarding_rule: _Optional[str] = ...) -> None: ...
+    cpu_share: int
+    def __init__(self, cell_id: _Optional[str] = ..., zone: _Optional[str] = ..., instance_name: _Optional[str] = ..., state: _Optional[str] = ..., address: _Optional[str] = ..., release_id: _Optional[str] = ..., create_called_unix_ms: _Optional[int] = ..., ready_unix_ms: _Optional[int] = ..., deleted_unix_ms: _Optional[int] = ..., cell_end_unix: _Optional[int] = ..., sandbox_count: _Optional[int] = ..., unreserved: _Optional[_Union[Resources, _Mapping]] = ..., recycle_reason: _Optional[str] = ..., forwarding_rule: _Optional[str] = ..., cpu_share: _Optional[int] = ...) -> None: ...
 
 class PlaceSandboxRequest(_message.Message):
     __slots__ = ("env_id", "subenv_id", "size", "timeout_secs", "avoid_cells")
@@ -283,7 +285,7 @@ class CellUsage(_message.Message):
     def __init__(self, cell_id: _Optional[str] = ..., create_called_unix_ms: _Optional[int] = ..., deleted_unix_ms: _Optional[int] = ..., cell_minutes: _Optional[float] = ...) -> None: ...
 
 class CellReport(_message.Message):
-    __slots__ = ("instance_id", "zone", "ready", "unreserved_cpu_halves", "unreserved_memory_gib", "sandbox_count", "cpu_in_use_millis", "memory_in_use_bytes", "lease_expiry_unix", "proxy_connections", "drain_state", "release_id", "egress_bytes")
+    __slots__ = ("instance_id", "zone", "ready", "unreserved_cpu_halves", "unreserved_memory_gib", "sandbox_count", "cpu_in_use_millis", "memory_in_use_bytes", "lease_expiry_unix", "proxy_connections", "drain_state", "release_id", "egress_bytes", "cpu_share")
     INSTANCE_ID_FIELD_NUMBER: _ClassVar[int]
     ZONE_FIELD_NUMBER: _ClassVar[int]
     READY_FIELD_NUMBER: _ClassVar[int]
@@ -297,6 +299,7 @@ class CellReport(_message.Message):
     DRAIN_STATE_FIELD_NUMBER: _ClassVar[int]
     RELEASE_ID_FIELD_NUMBER: _ClassVar[int]
     EGRESS_BYTES_FIELD_NUMBER: _ClassVar[int]
+    CPU_SHARE_FIELD_NUMBER: _ClassVar[int]
     instance_id: int
     zone: str
     ready: bool
@@ -310,7 +313,8 @@ class CellReport(_message.Message):
     drain_state: DrainState
     release_id: str
     egress_bytes: int
-    def __init__(self, instance_id: _Optional[int] = ..., zone: _Optional[str] = ..., ready: bool = ..., unreserved_cpu_halves: _Optional[int] = ..., unreserved_memory_gib: _Optional[int] = ..., sandbox_count: _Optional[int] = ..., cpu_in_use_millis: _Optional[int] = ..., memory_in_use_bytes: _Optional[int] = ..., lease_expiry_unix: _Optional[int] = ..., proxy_connections: _Optional[int] = ..., drain_state: _Optional[_Union[DrainState, str]] = ..., release_id: _Optional[str] = ..., egress_bytes: _Optional[int] = ...) -> None: ...
+    cpu_share: int
+    def __init__(self, instance_id: _Optional[int] = ..., zone: _Optional[str] = ..., ready: bool = ..., unreserved_cpu_halves: _Optional[int] = ..., unreserved_memory_gib: _Optional[int] = ..., sandbox_count: _Optional[int] = ..., cpu_in_use_millis: _Optional[int] = ..., memory_in_use_bytes: _Optional[int] = ..., lease_expiry_unix: _Optional[int] = ..., proxy_connections: _Optional[int] = ..., drain_state: _Optional[_Union[DrainState, str]] = ..., release_id: _Optional[str] = ..., egress_bytes: _Optional[int] = ..., cpu_share: _Optional[int] = ...) -> None: ...
 
 class CellReportAck(_message.Message):
     __slots__ = ()
@@ -796,7 +800,7 @@ class ListPlacementsResponse(_message.Message):
     def __init__(self, placements: _Optional[_Iterable[_Union[PlacementRow, _Mapping]]] = ...) -> None: ...
 
 class CellRow(_message.Message):
-    __slots__ = ("cell_id", "subenv_id", "state", "zone", "release_id", "sandbox_count", "cpu_in_use_millis", "memory_in_use_bytes", "lease_expiry_unix", "drain_state", "reported_unix_ms")
+    __slots__ = ("cell_id", "subenv_id", "state", "zone", "release_id", "sandbox_count", "cpu_in_use_millis", "memory_in_use_bytes", "lease_expiry_unix", "drain_state", "reported_unix_ms", "cpu_share")
     CELL_ID_FIELD_NUMBER: _ClassVar[int]
     SUBENV_ID_FIELD_NUMBER: _ClassVar[int]
     STATE_FIELD_NUMBER: _ClassVar[int]
@@ -808,6 +812,7 @@ class CellRow(_message.Message):
     LEASE_EXPIRY_UNIX_FIELD_NUMBER: _ClassVar[int]
     DRAIN_STATE_FIELD_NUMBER: _ClassVar[int]
     REPORTED_UNIX_MS_FIELD_NUMBER: _ClassVar[int]
+    CPU_SHARE_FIELD_NUMBER: _ClassVar[int]
     cell_id: str
     subenv_id: str
     state: str
@@ -819,7 +824,8 @@ class CellRow(_message.Message):
     lease_expiry_unix: int
     drain_state: str
     reported_unix_ms: int
-    def __init__(self, cell_id: _Optional[str] = ..., subenv_id: _Optional[str] = ..., state: _Optional[str] = ..., zone: _Optional[str] = ..., release_id: _Optional[str] = ..., sandbox_count: _Optional[int] = ..., cpu_in_use_millis: _Optional[int] = ..., memory_in_use_bytes: _Optional[int] = ..., lease_expiry_unix: _Optional[int] = ..., drain_state: _Optional[str] = ..., reported_unix_ms: _Optional[int] = ...) -> None: ...
+    cpu_share: int
+    def __init__(self, cell_id: _Optional[str] = ..., subenv_id: _Optional[str] = ..., state: _Optional[str] = ..., zone: _Optional[str] = ..., release_id: _Optional[str] = ..., sandbox_count: _Optional[int] = ..., cpu_in_use_millis: _Optional[int] = ..., memory_in_use_bytes: _Optional[int] = ..., lease_expiry_unix: _Optional[int] = ..., drain_state: _Optional[str] = ..., reported_unix_ms: _Optional[int] = ..., cpu_share: _Optional[int] = ...) -> None: ...
 
 class ListCellsResponse(_message.Message):
     __slots__ = ("cells",)

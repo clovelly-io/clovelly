@@ -96,6 +96,22 @@ a new bundle with a higher `version` (the format is in `crates/common/src/bundle
 verifier. Cells take it within 60 seconds. Run `init` again with a new `--subenv` to add a sub-environment: what
 exists is kept.
 
+### Sharing CPU among a sub-environment's sandboxes
+
+A bundle may set `"cpu_share"` to an integer from 1 to 4 (1 when absent). At a factor F, the sub-environment's
+sandboxes share their cell's CPUs: each keeps its CPU request as a hard cap, is guaranteed its request divided by F
+when every sandbox is busy, and a cell holds F times as many sandboxes by CPU. Use it for sandboxes that mostly
+wait, on a model or the network; leave it at 1 for CPU-bound work. Only your own sandboxes ever share a cell, and
+memory is never shared: a sandbox's memory is reserved whatever the factor, so a cell holds no more sandboxes than
+its memory allows (a `c3-standard-88` places 342 GiB: 342 sandboxes of 1 GiB, or 171 of 2 GiB, at any factor).
+
+A cell reads the factor from the bundle it unlocks with and keeps it until it is recycled, so a new factor applies
+to cells booted after you publish it; running cells and their sandboxes are unchanged. A bundle with any other
+value is refused: at a cell's unlock, the cell creates no sandbox (`POLICY_REFUSED`, naming `cpu_share`) until it
+gets a bundle it accepts; on a later refresh, the cell logs the refusal and keeps the bundle in force. Each
+sandbox's receipt says the factor it ran under (`cpu_share`, 1 for dedicated CPU), and so does
+`clovelly-receipt verify`.
+
 ## Updating
 
 Rotating your keys has its own page: [key-rotation.md](key-rotation.md). What to do when you leave:

@@ -27,6 +27,7 @@ use common::ccel;
 use common::evidence::Evidence;
 use common::proto::cell::cell_server::CellServer;
 use common::proto::control::DrainState;
+use common::sandbox::CpuShare;
 use common::proto::health::health_server::HealthServer;
 use serde_json::json;
 use tokio::net::TcpListener;
@@ -260,6 +261,10 @@ async fn serve(
     let proxy = start_proxy(&cfg, own).await?;
     let policies = Policies::new(cfg.env.clone(), cfg.subenv.clone(), placeable, &first.policy_key);
     let _ = policies.offer(&first.policy_bundle, &first.policy_sig, "unlock");
+    // The sharing factor is the unlock's bundle's, fixed for the cell's life, so the
+    // capacity the control plane sees never changes under it (SPEC.md phase 13). A refused
+    // unlock bundle leaves the cell dedicated; it creates nothing until a bundle arrives.
+    let cpu_share = policies.current().map_or(CpuShare::DEDICATED, |p| p.cpu_share);
     tokio::spawn(policies::poll(Arc::clone(&policies), api.clone()));
     let control_ca_pem = std::fs::read(CONTROL_PLANE_CA).ok();
     let channel = match (&cfg.control_plane, &control_ca_pem) {
@@ -275,6 +280,7 @@ async fn serve(
     let receipt_log = Log::new(Some(api.clone()));
     let cell_end = first.at + cfg.cap;
     let identity = Identity {
+        cpu_share,
         env: cfg.env.clone(),
         subenv: cfg.subenv.clone(),
         release: cfg.release.clone(),
@@ -383,6 +389,7 @@ async fn serve(
         terms: Arc::clone(&terms),
         drain: drain_rx.clone(),
         ready: routed,
+        cpu_share,
     };
     let reporter = match (channel, &control_ca_pem) {
         (Some(client), _) => Some(tokio::spawn(report::run(cfg.clone(), client, reported))),
@@ -396,6 +403,8 @@ async fn serve(
         "serving",
         json!({
             "placeable": { "cpu": placeable.cpu.vcpus(), "memory_gib": placeable.memory.0 },
+            "cpu_share": cpu_share.get(),
+            "capacity": { "cpu": sandboxes.capacity().cpu.vcpus(), "memory_gib": sandboxes.capacity().memory.0 },
             "cell_end": boot::unix(cell_end),
             "control_plane": cfg.control_plane,
         }),

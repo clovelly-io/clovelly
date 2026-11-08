@@ -2,7 +2,9 @@
 //!
 //! [`Sandboxes::create`] admits a sandbox only if the cell is serving, the size and
 //! timeout are within the policy's maximum, the placement window holds
-//! ([`check_window`]) and the cell's unreserved capacity holds the size; then it gives
+//! ([`check_window`]), the size fits the cell's physical placeable size, and the cell's
+//! unreserved capacity holds it (the placeable size with the CPU multiplied by the cell's
+//! sharing factor, [`CpuShare::capacity`]); then it gives
 //! the sandbox a network namespace whose only way out is the egress proxy
 //! ([`crate::net`]), registers it with the proxy under the policy bundle in force and
 //! its released credentials, writes an OCI bundle with the sandbox's cgroup limits, its
@@ -38,7 +40,7 @@ use common::template::Digest;
 use common::volume::{VolumeGib, VolumeName};
 use common::ids::{EnvId, IdError, ReleaseId, SandboxId, SubenvId, Zone};
 use common::proto::cell::{ErrorReason, ExitKind};
-use common::sandbox::{AboveMaximum, Crossing, Size, check_window};
+use common::sandbox::{AboveMaximum, CpuShare, Crossing, Size, check_window};
 use egress_proxy::{LogSnapshot, Supervisor, SupervisorError};
 use serde_json::{Value, json};
 use tokio::sync::{oneshot, watch};
@@ -330,6 +332,9 @@ pub struct Created {
 /// Who this cell is, for receipts.
 #[derive(Debug, Clone)]
 pub struct Identity {
+    /// The sharing factor the cell runs at, fixed at its unlock: every receipt's
+    /// `cpu_share`.
+    pub cpu_share: CpuShare,
     pub env: EnvId,
     pub subenv: SubenvId,
     pub release: ReleaseId,
@@ -430,6 +435,8 @@ pub struct Sandboxes {
     rootfs: PathBuf,
     bundles: PathBuf,
     binds: Vec<Bind>,
+    /// What sandboxes may use; the cell places this with the CPU multiplied by its sharing
+    /// factor ([`Sandboxes::capacity`]).
     placeable: Size,
     identity: Identity,
     /// None: sandboxes have no network (the dev server).
@@ -466,6 +473,8 @@ impl Receipting {
 }
 
 impl Sandboxes {
+    /// `placeable` is what the cell's sandboxes may use (the `clovelly` cgroup's limits);
+    /// the cell places it with the CPU multiplied by `identity.cpu_share`.
     pub fn new(
         runsc: Runsc,
         paths: Paths,
@@ -502,10 +511,15 @@ impl Sandboxes {
         self.inner.lock().unwrap_or_else(|p| p.into_inner())
     }
 
+    /// What the cell places: its placeable size with the CPU times its sharing factor.
+    pub fn capacity(&self) -> Size {
+        self.identity.cpu_share.capacity(self.placeable)
+    }
+
     pub fn snapshot(&self) -> Snapshot {
         let inner = self.lock();
         Snapshot {
-            unreserved: self.placeable - inner.used,
+            unreserved: self.capacity() - inner.used,
             count: u32::try_from(inner.live.len() + inner.starting.len()).unwrap_or(u32::MAX),
         }
     }
@@ -546,8 +560,9 @@ impl Sandboxes {
             {
                 return Err(CellError::Exists(req.id));
             }
-            let free = self.placeable - inner.used;
-            if !req.size.fits_in(free) {
+            let free = self.capacity() - inner.used;
+            // One sandbox never asks for more than the cell has, whatever the factor.
+            if !req.size.fits_in(free) || !req.size.fits_in(self.placeable) {
                 return Err(CellError::Capacity { need: req.size, free });
             }
             inner.used = inner.used + req.size;
@@ -942,6 +957,7 @@ impl Sandboxes {
                 "volume_epoch": volume_epoch,
             },
             "policy_hash": egress.policy_hash,
+            "cpu_share": i.cpu_share.get(),
             "creds_released": egress.creds,
             "egress_log_hash": egress.log.as_ref().map(|l| l.sha256.clone()),
             "egress_log_count": egress.log.as_ref().map_or(0, |l| l.count),
@@ -1046,6 +1062,8 @@ impl Sandboxes {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::runsc::{Cgroups, NetworkMode};
+    use common::sandbox::{CpuHalves, MemoryGib};
 
     #[test]
     fn errors_carry_their_reasons() {
@@ -1064,5 +1082,54 @@ mod tests {
             (ErrorReason::Capacity, tonic::Code::ResourceExhausted)
         );
         assert_eq!(CellError::Permission(id).reason().0, ErrorReason::Permission);
+    }
+
+    fn cell(share: u32) -> Arc<Sandboxes> {
+        Sandboxes::new(
+            Runsc { bin: "/nonexistent/runsc".into(), state: "/nonexistent".into(), cgroups: Cgroups::Ignore, network: NetworkMode::None, extra: Vec::new() },
+            Paths { rootfs: "/nonexistent".into(), bundles: "/nonexistent".into(), binds: Vec::new() },
+            Size::new(CpuHalves(174), MemoryGib(342)),
+            Identity {
+                cpu_share: CpuShare::try_from(share).unwrap(),
+                env: "staging".parse().unwrap(),
+                subenv: "a".parse().unwrap(),
+                release: "clovelly-test".parse().unwrap(),
+                instance_id: 0,
+                zone: "us-central1-a".parse().unwrap(),
+                project: "0".into(),
+            },
+            None,
+            None,
+            Receipting::local(),
+        )
+    }
+
+    /// Phase 13 criterion 2: a c3-standard-88's 87 vCPU places 87 x F vCPU of sandboxes and
+    /// its memory as it is; no one sandbox may ask for more than the cell has.
+    #[test]
+    fn a_shared_cell_places_its_cpu_times_the_factor_and_no_sandbox_above_the_machine() {
+        for f in 1..=4 {
+            let c = cell(f);
+            assert_eq!(c.snapshot().unreserved, Size::new(CpuHalves(174 * f), MemoryGib(342)));
+        }
+        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+        let bundle = br#"{"v":1,"env":"staging","subenv":"a","version":1,"expires":1,"destinations":[],"cpu_share":4,
+            "sandbox":{"default":{"cpu":1,"memory":1},"max":{"cpu":200,"memory":400,"timeout":3600}}}"#;
+        let policy = Arc::new(Policy::parse_trusted(bundle, Size::ZERO).unwrap());
+        let far = SystemTime::now() + Duration::from_secs(86_400);
+        for size in [Size::new(CpuHalves(176), MemoryGib(1)), Size::new(CpuHalves(2), MemoryGib(343))] {
+            let req = CreateRequest {
+                id: SandboxId::generate(),
+                key: AccessKey::parse(&[7; 32]).unwrap(),
+                size,
+                timeout: Duration::from_secs(60),
+                command: vec!["true".into()],
+                env: Vec::new(),
+                template: None,
+                volume: None,
+            };
+            let r = rt.block_on(cell(4).create(req, Terms { cell_end: far, valid_until: far }, Arc::clone(&policy), Released::default(), None));
+            assert!(matches!(r, Err(CellError::Capacity { .. })), "{size:?}: {:?}", r.err());
+        }
     }
 }

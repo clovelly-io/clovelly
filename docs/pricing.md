@@ -25,6 +25,10 @@ A cell-hour costs what its region costs: the region of the sub-environment it ru
 | `us-west1` | `c3-standard-8` | $1.05 |
 | `us-west1` | `c3-standard-88` | $11.55 |
 
+## Per sandbox
+
+A full cell spreads its cell-hour over its sandboxes. A `c3-standard-88` in `us-central1` ($10.45 a cell-hour) holds 87 sandboxes of 1 vCPU, about $0.12 a sandbox-hour when full. A sub-environment whose policy sets `cpu_share` shares its cells' CPUs among its own sandboxes, each keeping its CPU as a cap ([verifier-deploy.md](verifier-deploy.md#sharing-cpu-among-a-sub-environments-sandboxes)): at 3 the same cell holds 261 sandboxes of 1 vCPU and 1 GiB, about $0.04 a sandbox-hour. Memory is never shared, so a cell holds no more sandboxes than its 342 GiB allow: 171 of 2 GiB at any factor, about $0.06 a sandbox-hour.
+
 ## Egress
 
 What your sandboxes send out of a cell is metered: the egress proxy counts every byte it sends toward a destination your policy allows, inside the cell, where no sandbox can see or change the count. Responses coming back are not counted, and neither is the cell's own traffic to your verifier and to us.

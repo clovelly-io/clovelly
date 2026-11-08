@@ -220,6 +220,8 @@ message CellStatus {
   Resources unreserved = 12;
   string recycle_reason = 13;
   string forwarding_rule = 14;
+  // The CPU sharing factor the cell reported (1 is dedicated CPU); 0 before its first report.
+  uint32 cpu_share = 15;
 }
 
 message PlaceSandboxRequest {
@@ -316,6 +318,10 @@ message CellReport {
   // report loses nothing. Responses, and traffic to the verifier and the control plane, are
   // not in it.
   uint64 egress_bytes = 13;
+  // The sub-environment's CPU sharing factor (its policy bundle's cpu_share), read at the
+  // unlock and fixed for the cell's life: unreserved_cpu_halves above already counts the
+  // physical placeable CPU times this factor. 0 from a cell older than the field: 1.
+  uint32 cpu_share = 14;
 }
 
 message CellReportAck {}
@@ -710,6 +716,8 @@ message CellRow {
   uint64 lease_expiry_unix = 9;
   string drain_state = 10;
   uint64 reported_unix_ms = 11;
+  // The CPU sharing factor the cell reported (1 is dedicated CPU); 0 before its first report.
+  uint32 cpu_share = 12;
 }
 message ListCellsResponse {
   repeated CellRow cells = 1;

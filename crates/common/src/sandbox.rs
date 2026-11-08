@@ -4,9 +4,11 @@
 //! - [`Size`]: vCPUs in halves and whole GiB, the units of `CreateSandbox` (SPEC.md
 //!   "Sandbox sizing").
 //! - [`Limits`]: the policy bundle's default and maximum size and maximum timeout.
+//! - [`CpuShare`]: the sub-environment's CPU sharing factor, and the capacity it gives a cell.
 //! - [`check_window`]: a cell accepts a sandbox only if `now + timeout <= cell_end` and
 //!   `now + timeout < valid_until` (SPEC.md "Cell cap and sandbox timeouts").
 
+use std::fmt;
 use std::ops::{Add, Sub};
 use std::time::{Duration, SystemTime};
 
@@ -82,6 +84,76 @@ impl Sub for Size {
             CpuHalves(self.cpu.0.saturating_sub(o.cpu.0)),
             MemoryGib(self.memory.0.saturating_sub(o.memory.0)),
         )
+    }
+}
+
+/// A sub-environment's CPU sharing factor (SPEC.md phase 13), from its policy bundle's
+/// `cpu_share`: an integer from 1 to [`CpuShare::MAX`], 1 when the bundle names none.
+///
+/// Every sandbox on a cell belongs to the cell's one sub-environment, so the factor only
+/// ever shares CPU among one customer's own sandboxes. Each sandbox keeps its CPU request
+/// as its hard cap (`cpu.max`) and a weight in proportion to it; with every sandbox on the
+/// cell at the same factor, its guarantee under contention becomes its request divided by
+/// the factor. The cell offers its physical placeable CPU times the factor for placement
+/// ([`CpuShare::capacity`]). Memory is never shared.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CpuShare(u8);
+
+/// A `cpu_share` outside 1 to [`CpuShare::MAX`], or not an integer.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[error("cpu_share {0} is not an integer from 1 to {max}", max = CpuShare::MAX.get())]
+pub struct CpuShareError(pub String);
+
+impl CpuShare {
+    /// No sharing: each sandbox is guaranteed its whole request (the product default).
+    pub const DEDICATED: CpuShare = CpuShare(1);
+    /// The largest factor, from a rule on a measured trial on c3-standard-88: the largest
+    /// of 2, 3 and 4 at which sandboxes looping a rollout (a 200 ms CPU step, a 2 s wait, a
+    /// 1 MB write) kept the step's p95 under twice its unshared figure and their iterations
+    /// a second within 20% of it. At 4 the step's p95 was 351 ms against a bound of 422 ms,
+    /// and iterations 0.98 of unshared.
+    pub const MAX: CpuShare = CpuShare(4);
+
+    /// The factor as a number.
+    pub fn get(self) -> u32 {
+        u32::from(self.0)
+    }
+
+    /// What a cell whose sandboxes may use `placeable` offers for placement at this
+    /// factor: the CPU multiplied, the memory as it is.
+    pub fn capacity(self, placeable: Size) -> Size {
+        Size::new(CpuHalves(placeable.cpu.0.saturating_mul(self.get())), placeable.memory)
+    }
+
+    /// Parses a policy bundle's `cpu_share` value.
+    pub fn from_json(v: &serde_json::Value) -> Result<Self, CpuShareError> {
+        v.as_u64()
+            .and_then(|n| u32::try_from(n).ok())
+            .ok_or_else(|| CpuShareError(v.to_string()))
+            .and_then(Self::try_from)
+    }
+}
+
+impl TryFrom<u32> for CpuShare {
+    type Error = CpuShareError;
+
+    fn try_from(n: u32) -> Result<Self, CpuShareError> {
+        match u8::try_from(n) {
+            Ok(f) if (1..=Self::MAX.0).contains(&f) => Ok(Self(f)),
+            _ => Err(CpuShareError(n.to_string())),
+        }
+    }
+}
+
+impl Default for CpuShare {
+    fn default() -> Self {
+        Self::DEDICATED
+    }
+}
+
+impl fmt::Display for CpuShare {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
     }
 }
 
@@ -283,6 +355,31 @@ mod tests {
         let soon = now + Duration::from_secs(600);
         assert_eq!(check_window(now, Duration::from_secs(599), cap_end, soon), Ok(()));
         assert_eq!(check_window(now, Duration::from_secs(600), cap_end, soon), Err(Crossing::ReleaseExpiry));
+    }
+
+    /// Phase 13 criterion 1: 1 to the maximum parse; 0, above the maximum and anything
+    /// not an integer are refused, naming the field.
+    #[test]
+    fn cpu_share_is_an_integer_from_1_to_the_maximum() {
+        for n in 1..=CpuShare::MAX.get() {
+            assert_eq!(CpuShare::from_json(&serde_json::json!(n)).unwrap().get(), n);
+        }
+        assert_eq!(CpuShare::MAX.get(), 4, "the rule's result on phase 11's figures");
+        for bad in [serde_json::json!(0), serde_json::json!(5), serde_json::json!(-1), serde_json::json!(2.5),
+                    serde_json::json!(2.0), serde_json::json!("2"), serde_json::json!(null), serde_json::json!(u64::MAX)] {
+            let e = CpuShare::from_json(&bad).unwrap_err();
+            assert!(e.to_string().starts_with("cpu_share "), "{e}");
+        }
+        assert_eq!(CpuShare::try_from(0).unwrap_err().to_string(), "cpu_share 0 is not an integer from 1 to 4");
+    }
+
+    /// Phase 13: the factor multiplies a cell's CPU, never its memory.
+    #[test]
+    fn the_factor_multiplies_cpu_and_not_memory() {
+        let c3_88 = Size::new(CpuHalves(174), MemoryGib(342));
+        assert_eq!(CpuShare::DEDICATED.capacity(c3_88), c3_88);
+        assert_eq!(CpuShare::try_from(3).unwrap().capacity(c3_88), Size::new(CpuHalves(522), MemoryGib(342)));
+        assert_eq!(CpuShare::MAX.capacity(c3_88), Size::new(CpuHalves(696), MemoryGib(342)));
     }
 
     #[test]
