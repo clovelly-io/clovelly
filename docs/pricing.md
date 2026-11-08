@@ -27,7 +27,7 @@ A cell-hour costs what its region costs: the region of the sub-environment it ru
 
 ## Per sandbox
 
-A full cell spreads its cell-hour over its sandboxes. A `c3-standard-88` in `us-central1` ($10.45 a cell-hour) holds 87 sandboxes of 1 vCPU, about $0.12 a sandbox-hour when full. A sub-environment whose policy sets `cpu_share` shares its cells' CPUs among its own sandboxes, each keeping its CPU as a cap ([verifier-deploy.md](verifier-deploy.md#sharing-cpu-among-a-sub-environments-sandboxes)): at 3 the same cell holds 261 sandboxes of 1 vCPU and 1 GiB, about $0.04 a sandbox-hour. Memory is never shared, so a cell holds no more sandboxes than its 342 GiB allow: 171 of 2 GiB at any factor, about $0.06 a sandbox-hour.
+A full cell spreads its cell-hour over its sandboxes. A `c3-standard-88` in `us-central1` ($10.45 a cell-hour) holds 87 sandboxes of 1 vCPU, about $0.12 a sandbox-hour when full. A sub-environment whose policy sets `cpu_share` shares its cells' CPUs among its own sandboxes, each keeping its CPU as a cap ([verifier-deploy.md](verifier-deploy.md#sharing-cpu-among-a-sub-environments-sandboxes)): at 3 the same cell holds 261 sandboxes of 1 vCPU and 1 GiB, about $0.04 a sandbox-hour. Memory is never shared, so a cell holds no more sandboxes than its 342 GiB allow: 171 of 2 GiB at any factor, about $0.06 a sandbox-hour; sharing pays off only for sandboxes of about 4/F GiB or less (1.3 GiB at 3, 1 GiB at 4).
 
 ## Egress
 

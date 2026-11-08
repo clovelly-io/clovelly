@@ -88,7 +88,10 @@ pub enum CellError {
     Permission(SandboxId),
     #[error("a sandbox {0} already exists on this cell")]
     Exists(SandboxId),
-    #[error("{need:?} does not fit the cell's unreserved {free:?}")]
+    /// `free` is the most one sandbox could have now: the cell's unreserved capacity, and
+    /// never more than its physical placeable size. The message names the resource that
+    /// binds (SPEC.md phase 13: CPU, memory or both).
+    #[error("{}", short_of(*.need, *.free))]
     Capacity { need: Size, free: Size },
     #[error(transparent)]
     AboveMaximum(#[from] AboveMaximum),
@@ -153,6 +156,19 @@ impl CellError {
             CellError::Credentials(_) => (ErrorReason::CredentialUnavailable, Code::Unavailable),
         }
     }
+}
+
+/// What a refused size is short of, resource by resource: "the cell has too little
+/// unreserved memory (1 GiB asked, 0 GiB free)".
+fn short_of(need: Size, free: Size) -> String {
+    let mut short = Vec::new();
+    if need.cpu > free.cpu {
+        short.push(format!("CPU ({} vCPU asked, {} vCPU free)", need.cpu.vcpus(), free.cpu.vcpus()));
+    }
+    if need.memory > free.memory {
+        short.push(format!("memory ({} GiB asked, {} GiB free)", need.memory.0, free.memory.0));
+    }
+    format!("the cell has too little unreserved {}", short.join(" and "))
 }
 
 /// A sandbox's access key: 32 bytes the SDK chose, wiped on drop.
@@ -560,9 +576,10 @@ impl Sandboxes {
             {
                 return Err(CellError::Exists(req.id));
             }
-            let free = self.capacity() - inner.used;
             // One sandbox never asks for more than the cell has, whatever the factor.
-            if !req.size.fits_in(free) || !req.size.fits_in(self.placeable) {
+            let unreserved = self.capacity() - inner.used;
+            let free = Size::new(unreserved.cpu.min(self.placeable.cpu), unreserved.memory.min(self.placeable.memory));
+            if !req.size.fits_in(free) {
                 return Err(CellError::Capacity { need: req.size, free });
             }
             inner.used = inner.used + req.size;
@@ -1129,7 +1146,13 @@ mod tests {
                 volume: None,
             };
             let r = rt.block_on(cell(4).create(req, Terms { cell_end: far, valid_until: far }, Arc::clone(&policy), Released::default(), None));
-            assert!(matches!(r, Err(CellError::Capacity { .. })), "{size:?}: {:?}", r.err());
+            let Err(e @ CellError::Capacity { .. }) = r else { panic!("{size:?}: {:?}", r.err()) };
+            let binds = if size.memory.0 > 342 { "memory" } else { "CPU" };
+            assert!(e.to_string().starts_with(&format!("the cell has too little unreserved {binds}")), "{e}");
         }
+        assert_eq!(
+            CellError::Capacity { need: Size::new(CpuHalves(2), MemoryGib(1)), free: Size::new(CpuHalves(12), MemoryGib(0)) }.to_string(),
+            "the cell has too little unreserved memory (1 GiB asked, 0 GiB free)"
+        );
     }
 }

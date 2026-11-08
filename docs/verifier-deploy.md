@@ -103,7 +103,12 @@ sandboxes share their cell's CPUs: each keeps its CPU request as a hard cap, is 
 when every sandbox is busy, and a cell holds F times as many sandboxes by CPU. Use it for sandboxes that mostly
 wait, on a model or the network; leave it at 1 for CPU-bound work. Only your own sandboxes ever share a cell, and
 memory is never shared: a sandbox's memory is reserved whatever the factor, so a cell holds no more sandboxes than
-its memory allows (a `c3-standard-88` places 342 GiB: 342 sandboxes of 1 GiB, or 171 of 2 GiB, at any factor).
+its memory allows. Memory binds first at the default size: a `c3-standard-88` places 342 GiB, so it holds 171 sandboxes
+of 2 GiB whatever the factor, and sharing pays off only for sandboxes of about 4/F GiB or less (1.3 GiB at 3, 1 GiB
+at 4). A sub-environment that shares CPU therefore sets a smaller default size in its bundle (`sandbox.default`, for
+example 1 vCPU and 1 GiB). A cell's capacity is the lesser of its CPU times the factor and its memory; an 88 holds 87
+sandboxes of 1 vCPU and 1 GiB at 1, 261 at 3 and 342 at 4, and a create it cannot hold is refused (`CAPACITY`) with
+the resource that binds named: CPU at 1 and 3, memory at 4.
 
 A cell reads the factor from the bundle it unlocks with and keeps it until it is recycled, so a new factor applies
 to cells booted after you publish it; running cells and their sandboxes are unchanged. A bundle with any other
