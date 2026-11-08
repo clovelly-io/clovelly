@@ -104,9 +104,10 @@ fn totals_spread(totals: &[f64]) -> (f64, f64) {
     (t.first().map_or(f64::NAN, |x| x / median), t.last().map_or(f64::NAN, |x| x / median))
 }
 
-/// Phase 11's full-cell bound (SPEC.md phase 11 criterion 9, amended 2026-11-08): each sandbox's total over its
-/// transfers within this fraction of the median sandbox's total.
-const FAIR_SHARE: f64 = 0.25;
+/// Phase 11's full-cell bound (SPEC.md phase 11 criterion 9, amended 2026-11-08): no sandbox's total over its
+/// transfers exceeds this many times the median sandbox's total. One-sided: a sandbox that finishes early, having
+/// started before its competitors, starves nobody.
+const FAIR_SHARE: f64 = 1.25;
 
 impl Run {
     fn mbps(&self) -> Vec<f64> {
@@ -749,9 +750,9 @@ pub fn run(checks: &mut Checks, out: &Path, peer: SocketAddr, scope: Scope, full
                 let (lo, hi) = (f(&full["sandbox_total_min_over_median"]), f(&full["sandbox_total_max_over_median"]));
                 checks.record(
                     &format!("c8-stall-bound{tag}"),
-                    ok(f(&c1["slowest_over_median"]) <= 3.0 && lo >= 1.0 - FAIR_SHARE && hi <= 1.0 + FAIR_SHARE),
+                    ok(f(&c1["slowest_over_median"]) <= 3.0 && hi <= FAIR_SHARE),
                     format!(
-                        "{label}: one sandbox, slowest over median {:.2} (target ≤ 3); a full cell, each sandbox's total over its transfers from {lo:.2} to {hi:.2} times the median sandbox's (target within {FAIR_SHARE}), single transfers' slowest over median {:.2} (recorded)",
+                        "{label}: one sandbox, slowest over median {:.2} (target ≤ 3); a full cell, the slowest sandbox's total over its transfers {hi:.2} times the median sandbox's (target ≤ {FAIR_SHARE}; the fastest {lo:.2}, recorded), single transfers' slowest over median {:.2} (recorded)",
                         f(&c1["slowest_over_median"]),
                         f(&full["slowest_over_median"])
                     ),
