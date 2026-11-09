@@ -120,8 +120,8 @@ makes is **default deny**: a sandbox reaches nothing on the internet until you a
   resolvers; the image's pinned set when absent), `templates` (digests a cell pre-pulls).
 
 To publish one: take the bundle from your configuration, change it, raise `version`, and sign it with your policy
-key through your helper, as your platform's page shows for running the helper on your machine. With jq and the
-published images:
+key through your helper. On Google Cloud, [verifier-gcp.md](verifier-gcp.md#allowing-a-destination) has every
+command. Anywhere else, with your helper on the operator's machine at `127.0.0.1:8200`, jq and the published images:
 
 ```bash
 jq -r '.subenvs.main.policy_bundle' clovelly-out/MY_ENV/config.json \

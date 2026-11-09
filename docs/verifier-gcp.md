@@ -52,6 +52,26 @@ Cloud Run job does it):
 clovelly-keys check-role gcp --sign-key CA_KEY_VERSION --dek-key DEK_KEY
 ```
 
+## Allowing a destination
+
+A new sub-environment's sandboxes reach nothing on the internet ([verifier-deploy.md](verifier-deploy.md#publishing-a-policy)
+says what a policy bundle holds). To allow one, here `www.google.com` on 443 for sub-environment `main`, in the
+directory where you ran `init`, with `KEYS_IMAGE` and `VERIFIER_IMAGE` set as above and MY_PROJECT and MY_ENV yours:
+
+```bash
+docker run -d --name clovelly-keys-operator --platform linux/amd64 --env-file clovelly-out/MY_ENV/keys.env -e CLOVELLY_ACCESS_TOKEN="$(gcloud auth print-access-token)" "$KEYS_IMAGE" serve gcp
+POLICY_KEY=$(tr ',' '\n' < clovelly-out/MY_ENV/keys.env | sed 's/^CLOVELLY_KEYS_ALLOW=//' | grep -- '-policy/')
+jq -r '.subenvs.main.policy_bundle' clovelly-out/MY_ENV/config.json | jq -c '.version += 1 | .destinations += [{"host": "www.google.com", "port": 443}]' | tr -d '\n' > bundle.json
+docker run --rm -i --platform linux/amd64 --network container:clovelly-keys-operator -e CLOVELLY_KEYS_URL=http://127.0.0.1:8200 "$VERIFIER_IMAGE" sign --key "$POLICY_KEY" --detached < bundle.json | tr -d '\n' > bundle.sig
+jq --rawfile b bundle.json --rawfile s bundle.sig '.subenvs.main.policy_bundle = $b | .subenvs.main.policy_sig = $s' clovelly-out/MY_ENV/config.json > config.new && mv config.new clovelly-out/MY_ENV/config.json
+docker rm -f clovelly-keys-operator
+./verifier.sh deploy MY_PROJECT us-central1 MY_ENV verifier
+```
+
+Sandboxes created after the verifier restarts (cells take the bundle within 60 seconds) reach the destination;
+running ones keep the bundle they started with. To allow more, change the `destinations` step: any of the forms in
+[verifier-deploy.md](verifier-deploy.md#publishing-a-policy).
+
 ## Checking the helper from your machine
 
 The same image serves the same keys on your login, for `verifier check-keys`, `verifier sign` and the rotations in
