@@ -91,11 +91,51 @@ that restarts during an outage has only your signed release policy until a fetch
 
 ## Publishing a policy
 
-A new sub-environment's bundle is default deny and valid for 30 days. To allow a destination or extend it, sign
-a new bundle with a higher `version` (the format is in `crates/common/src/bundle.rs`) through your helper,
-`verifier sign --key POLICY_KEY --detached < bundle.json`, put both in the configuration and restart the
-verifier. Cells take it within 60 seconds. Run `init` again with a new `--subenv` to add a sub-environment: what
-exists is kept.
+A sub-environment's policy bundle says what its sandboxes may reach and how large they may be. The one `init`
+makes is **default deny**: a sandbox reaches nothing on the internet until you allow a destination. It is valid for
+30 days. The bundle is JSON, kept with its signature in your configuration (`config.json`, `subenvs.<name>`:
+`policy_bundle`, the bundle as a string, and `policy_sig`, its detached signature):
+
+```json
+{ "v": 1, "env": "MY_ENV", "subenv": "main", "version": 2, "expires": 1796851052,
+  "sandbox": { "default": { "cpu": 1, "memory": 2 }, "max": { "cpu": 7, "memory": 27, "timeout": 86400 } },
+  "destinations": [
+    { "host": "www.google.com", "port": 443 },
+    { "host": "*.example.com", "port": 443 },
+    { "host": "api.openai.com", "port": 443, "paths": ["/v1/"],
+      "adapter": { "type": "bearer", "header": "authorization", "credential": "openai" } },
+    { "host": "pinned.example.net", "port": 443, "passthrough": true } ] }
+```
+
+- `v` is 1. `env` and `subenv` must be this environment's and sub-environment's.
+- `version` must be higher than the one in force: cells refuse an older bundle.
+- `expires` is Unix seconds. A cell refuses an expired bundle for new sandboxes; running ones keep theirs.
+- `sandbox`: the defaults and maxima (vCPUs in multiples of 0.5, GiB, seconds up to 86400).
+- `destinations`: what is allowed, and nothing else. `host` is a name, an IPv4 address, `*` (any host) or `*.domain`
+  (exactly one more label). `port` is required. `paths` (optional) are path prefixes a request must start with.
+  `adapter` (optional, not with a wildcard) swaps a sealed credential into the request: `bearer` (in `header`),
+  `basic`, or `query` (in `param`), naming the `credential`. `passthrough: true` forwards TLS untouched (no adapter,
+  no paths).
+- Optional: `cpu_share` (below), `resolvers` (`[{ "ip": "1.1.1.1", "name": "cloudflare-dns.com" }]`, the DNS-over-TLS
+  resolvers; the image's pinned set when absent), `templates` (digests a cell pre-pulls).
+
+To publish one: take the bundle from your configuration, change it, raise `version`, and sign it with your policy
+key through your helper, as your platform's page shows for running the helper on your machine. With jq and the
+published images:
+
+```bash
+jq -r '.subenvs.main.policy_bundle' clovelly-out/MY_ENV/config.json \
+  | jq -c '.version += 1 | .destinations += [{"host": "www.google.com", "port": 443}]' | tr -d '\n' > bundle.json
+docker run --rm -i --platform linux/amd64 --network container:clovelly-keys-operator -e CLOVELLY_KEYS_URL=http://127.0.0.1:8200 \
+  "$VERIFIER_IMAGE" sign --key POLICY_KEY_VERSION --detached < bundle.json | tr -d '\n' > bundle.sig
+jq --rawfile b bundle.json --rawfile s bundle.sig '.subenvs.main.policy_bundle = $b | .subenvs.main.policy_sig = $s' \
+  clovelly-out/MY_ENV/config.json > config.new && mv config.new clovelly-out/MY_ENV/config.json
+```
+
+The bytes signed must be the bytes stored, so keep the bundle on one line with no trailing newline, as above.
+`POLICY_KEY_VERSION` is the `-policy` key in `clovelly-out/MY_ENV/keys.env`. Then deploy the verifier again (on Google
+Cloud, `./verifier.sh deploy MY_PROJECT us-central1 MY_ENV verifier`). Cells take the new bundle within 60 seconds,
+for sandboxes created after that: a running sandbox keeps the bundle it started with. Run `init` again with a new `--subenv` to add a sub-environment: what exists is kept.
 
 ### Sharing CPU among a sub-environment's sandboxes
 
