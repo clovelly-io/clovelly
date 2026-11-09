@@ -7,15 +7,15 @@ allowlist all ten.
 
 | Region | Addresses |
 |---|---|
-| us-central1 | `34.9.161.117`, `34.136.66.133` |
-| us-east4 | `35.188.249.103`, `34.181.128.76` |
-| us-west1 | `34.127.79.50`, `35.252.76.110` |
-| europe-west4 | `34.187.84.171`, `34.91.113.205` |
-| asia-southeast1 | `34.126.94.195`, `34.21.146.68` |
+| us-central1 | `35.253.209.53`, `34.132.194.96` |
+| us-east4 | `136.107.122.207`, `8.234.139.153` |
+| us-west1 | `8.231.162.102`, `136.70.16.162` |
+| europe-west4 | `34.147.94.68`, `34.12.127.221` |
+| asia-southeast1 | `34.21.199.164`, `34.21.184.141` |
 
-These are the addresses of our staging environment, the only one running today; a
-production region's addresses will be added here before it takes traffic. Traffic to Google
-APIs and services takes Google's private path and does not come from these addresses.
+A region's addresses are added here before it takes traffic, and an address is never removed
+while a region uses it. Traffic to Google APIs and services takes Google's private path and does
+not come from these addresses.
 
 Cells reach a verifier outside Google from these addresses too. You may allowlist them in front of your verifier; cells
 still authenticate by attestation and by nothing about the network.

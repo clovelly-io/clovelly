@@ -28,11 +28,11 @@ regions' relays:
 
 | Region | Relay address |
 |---|---|
-| `us-central1` | `34.70.149.64` |
-| `europe-west4` | `34.178.167.37` |
-| `us-east4` | `34.181.207.249` |
-| `us-west1` | `136.66.203.110` |
-| `asia-southeast1` | `34.126.99.122` |
+| `us-central1` | `35.254.84.14` |
+| `europe-west4` | `34.187.43.227` |
+| `us-east4` | `34.182.224.43` |
+| `us-west1` | `136.87.77.46` |
+| `asia-southeast1` | `34.87.53.119` |
 
 The relay learns which cell each connection is for and how many bytes go each way, and nothing else. See the
 [threat model](threat-model.md#the-relay-in-front-of-the-cells).
