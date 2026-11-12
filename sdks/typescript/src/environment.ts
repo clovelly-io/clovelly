@@ -198,6 +198,7 @@ export class Environment {
             templateDigest,
             volume: request.volume,
             volumeGib: request.volumeGib,
+            placementPass: placement.placementPass,
           })
           .finally(() => {
             timings.createMs += performance.now() - started;

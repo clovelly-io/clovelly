@@ -169,6 +169,7 @@ pub async fn run(args: &[String]) -> anyhow::Result<()> {
         pids: state.join("pids"),
         execs: AtomicU64::new(0),
         templates: None,
+        passes: crate::cellapi::Passes::Unchecked,
     };
     let listener = TcpListener::bind(("0.0.0.0", port)).await?;
     println!("dev-serve {name} on :{port}, placeable {placeable:?}");

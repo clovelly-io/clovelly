@@ -92,6 +92,9 @@ enum ErrorReason {
   VOLUME_UNREADABLE = 19;
   // UNAVAILABLE: the volume's lease or blocks could not be reached.
   VOLUME_UNAVAILABLE = 20;
+  // PERMISSION_DENIED: CreateSandbox without a placement pass the control plane issued for
+  // this cell, sandbox, size and timeout, or with one expired or used before.
+  PLACEMENT_REFUSED = 21;
 }
 
 // How a sandbox ended (the receipt's exit.kind).
@@ -138,6 +141,10 @@ message CreateSandboxRequest {
   // '_', '-'; empty: none. Created on first use with volume_gib (1 to 20, default 1).
   string volume = 9;
   uint32 volume_gib = 10;
+  // The placement's pass, from PlaceSandbox (Placement.placement_pass): the control plane's
+  // signature over this cell, this sandbox id, this size and timeout. A cell that has a
+  // control plane creates nothing without one (PLACEMENT_REFUSED), and takes each once.
+  string placement_pass = 11;
 }
 
 message CreateSandboxResponse {

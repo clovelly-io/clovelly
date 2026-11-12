@@ -31,6 +31,7 @@ pub mod evidence;
 pub mod ids;
 pub mod jcs;
 pub mod jws;
+pub mod pass;
 pub mod proto;
 pub mod receipt;
 pub mod rekor;

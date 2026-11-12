@@ -339,6 +339,7 @@ async fn serve(
         pids: PIDS.into(),
         execs: AtomicU64::new(0),
         templates: Some(Arc::clone(&templates)),
+        passes: passes(&cfg, &first.evidence, control_ca_pem.as_deref())?,
     };
     let listener = TcpListener::bind(("0.0.0.0", listener::PORT)).await?;
     let mut server = tokio::spawn(
@@ -468,4 +469,38 @@ async fn serve(
     drop(drain_tx);
     status("exit", json!({ "ending": format!("{ending:?}") }));
     Ok(ExitCode::SUCCESS)
+}
+
+/// Whether this cell checks placement passes: under the control plane's CA bundle, for its
+/// attested project (`evidence` is the first unlock's, whose quote the verifier accepted), when
+/// it has both, refusing every create when it has a control plane but not its CA or no attested
+/// project, and not at all with no
+/// control plane (the `clovelly-control-plane` instance metadata unset). Nothing attests that
+/// metadata: only the operator sets it, when it creates the instance through Compute, so a
+/// cell without it is ours to boot (tests and `dev-serve`), and the threat model says so.
+fn passes(cfg: &BootConfig, evidence: &common::evidence::Evidence, control_ca_pem: Option<&[u8]>) -> anyhow::Result<crate::cellapi::Passes> {
+    use crate::cellapi::{PassGate, Passes};
+    Ok(match (&cfg.control_plane, control_ca_pem) {
+        // A pass names its deployment's project (the final read's A1), and the cell's own is the
+        // one the verifier vouched for at unlock: the metadata's, only when it predicts the
+        // MR_OWNER of the quote the verifier accepted. Otherwise no pass can be matched, so
+        // every create is refused, and the log says why.
+        (_, Some(pem)) => match common::tdx::Quote::parse(&evidence.quote)
+            .map_err(|e| e.to_string())
+            .and_then(|q| common::pass::Project::attested(&cfg.project, evidence.instance_id, &evidence.zone, &q.mr_owner).map_err(|e| e.to_string()))
+        {
+            Ok(project) => {
+                let checker = common::pass::PassChecker::from_ca_pem(std::str::from_utf8(pem).context("the control-plane CA is not UTF-8")?, project)
+                    .context("the control-plane CA")?;
+                let cell = common::evidence::cell_name(&cfg.instance_name, &cfg.zone, &cfg.env, &cfg.subenv);
+                Passes::Checked(Box::new(PassGate::new(checker, cell)))
+            }
+            Err(reason) => {
+                status("passes-refused", json!({ "reason": reason }));
+                Passes::Refused
+            }
+        },
+        (Some(_), None) => Passes::Refused,
+        (None, None) => Passes::Unchecked,
+    })
 }

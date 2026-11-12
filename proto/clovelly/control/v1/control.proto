@@ -134,6 +134,9 @@ enum ErrorReason {
   // INVALID_ARGUMENT: credit bought, or an auto-recharge amount, under the price book's
   // minimum top-up; "clovelly-minimum-cents" is the minimum.
   BELOW_MINIMUM_TOP_UP = 22;
+  // 23 was GRANT_REFUSED, for a sub-environment's payer, removed on 2026-11-11 unreleased.
+  reserved 23;
+  reserved "GRANT_REFUSED";
 }
 
 message PutEnvironmentRequest {
@@ -171,6 +174,9 @@ message Subenvironment {
   // A verifier for this sub-environment's cells other than the environment's (test
   // deployments); empty uses the environment's.
   string verifier_url = 6;
+  // 7 to 9 were a sub-environment's payer, removed on 2026-11-11 unreleased.
+  reserved 7 to 9;
+  reserved "payer_org_id", "payer_state", "payer_max_warm_per_zone";
 }
 
 message Pool {
@@ -234,6 +240,9 @@ message PlaceSandboxRequest {
   uint32 timeout_secs = 4;
   // Cells that refused this request; placement avoids them.
   repeated string avoid_cells = 5;
+  // 6 was a placement grant, removed on 2026-11-11 unreleased.
+  reserved 6;
+  reserved "grant";
 }
 
 message Placement {
@@ -252,6 +261,9 @@ message Placement {
   // TLS server name and HTTP/2 authority the SDK dials cell_address with, which the
   // relay routes by and the cell's certificate must carry.
   string cell_name = 9;
+  // PlaceSandbox only: the pass the SDK hands the cell with CreateSandbox
+  // (CreateSandboxRequest.placement_pass), good for 10 minutes and one sandbox.
+  string placement_pass = 10;
 }
 
 message LocateSandboxRequest {
@@ -551,6 +563,9 @@ message OffboardResponse {
 // but billing and members; developer keys and pools in the environments it is granted; read_only
 // nothing that changes anything.
 service Account {
+  // Owner: lets one of the operator's services debit this organization's credit, or stops
+  // it (an organization-wide action: a console action token, never an API key).
+  rpc SetServiceAccess(SetServiceAccessRequest) returns (Org);
   // Who the caller is: joins any invitation for its verified email and returns its
   // organization, if it has one. Identity token.
   rpc SignIn(SignInRequest) returns (SignInResponse);
@@ -638,6 +653,15 @@ message Org {
   // Placements are refused now, and why: "no_card", "credit_exhausted", "charge_failed";
   // empty when they are not.
   string paused = 8;
+  // The operator's services this organization lets debit its credit (SetServiceAccess).
+  repeated string services = 9;
+}
+
+message SetServiceAccessRequest {
+  // An operator's service, by name, e.g. a product built on sandboxes that the
+  // organization turns on.
+  string service = 1;
+  bool allowed = 2;
 }
 
 message DeleteOrgRequest {}
@@ -903,3 +927,69 @@ message StripeWebhookRequest {
   string signature = 2;
 }
 message StripeWebhookResponse {}
+
+// Services the operator runs on the platform (products built on sandboxes) call these with
+// a service token (Authorization: Bearer clsvc_...), which the operator issues to one of its
+// own organizations and which no customer holds. Each token carries one right. With
+// accounts, a service reads and debits the credit of organizations that allow it
+// (Account.SetServiceAccess), and reads what the runtime billed the service's own
+// organization for one of its environments; with environments, it creates environments in
+// its own organization and nothing else.
+service Services {
+  // An organization's balance and whether its placements are paused.
+  rpc GetBalance(GetBalanceRequest) returns (Balance);
+  // Takes cents from the organization's credit, once per idempotency key: a repeat with the
+  // same key changes nothing and answers debited = false. Only while the organization allows
+  // the service: once it stops it, every debit is refused (NOT_FOUND). Credit soonest to expire goes
+  // first; what no credit covers is owed, as for usage.
+  rpc Debit(DebitRequest) returns (DebitResponse);
+  // What the runtime billed the service's own organization for one of its environments on a
+  // finished UTC day: the cells' cell-minutes and egress, priced as the ledger spent them. A
+  // product that runs sandboxes for a customer in an environment of its own
+  // passes this through. NOT_FOUND for an environment of another organization; a day
+  // not yet finished is refused.
+  rpc GetEnvironmentUsage(GetEnvironmentUsageRequest) returns (EnvironmentUsage);
+  // Only for a token with the environments right, which may do nothing else: creates an
+  // environment in the service's own organization, as an admin of it would (the verifier must
+  // answer and serve its CA), and answers its first key, read_write, shown once. For an
+  // environment of the service's own organization that exists already with the same verifier
+  // and has no sub-environment yet (a retry whose key was lost before anything was built on
+  // it), every earlier key is revoked and a new first key issued. An environment with a
+  // sub-environment is never rekeyed. Any other token, or another organization's environment,
+  // is refused.
+  rpc CreateEnvironment(CreateEnvironmentRequest) returns (CreateEnvironmentResponse);
+}
+
+message GetBalanceRequest {
+  string org_id = 1;
+}
+message Balance {
+  string org_id = 1;
+  int64 balance_cents = 2;
+  // As Org.paused.
+  string paused = 3;
+}
+message DebitRequest {
+  string org_id = 1;
+  // At least 1.
+  int64 cents = 2;
+  // The service's own name for the debit, unique per piece of work (1 to 128 printable
+  // ASCII characters).
+  string idempotency_key = 3;
+  // Shown to the organization beside the debit (up to 200 characters).
+  string memo = 4;
+}
+message DebitResponse {
+  bool debited = 1;
+  int64 balance_cents = 2;
+}
+message GetEnvironmentUsageRequest {
+  string env_id = 1;
+  // YYYY-MM-DD, UTC; before today.
+  string day = 2;
+}
+message EnvironmentUsage {
+  string env_id = 1;
+  string day = 2;
+  int64 cents = 3;
+}

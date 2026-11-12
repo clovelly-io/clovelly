@@ -54,6 +54,8 @@ export interface CreateSandboxRequest {
   volume: string;
   /** 0: the default (1 GiB) when the volume is created. */
   volumeGib: number;
+  /** The placement's pass (Placement.placementPass); "" for none. */
+  placementPass: string;
 }
 
 export interface CreateSandboxResponse {
@@ -165,6 +167,8 @@ export interface Placement {
   /** Null when the control plane left it unset. */
   size: Resources | null;
   timeoutSecs: number;
+  /** PlaceSandbox's pass for this placement, which the cell checks at CreateSandbox. */
+  placementPass: string;
 }
 
 /** A sub-environment's pool; `region` and the customer's settings, `zones` read only. */

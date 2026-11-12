@@ -231,9 +231,11 @@ class Cell:
         template_digest: str = "",
         volume: str = "",
         volume_gib: int = 0,
+        placement_pass: str = "",
     ) -> cell_pb2.CreateSandboxResponse:
         """``Cell.CreateSandbox``: returns the response (``started_unix_ms``, ``runsc_ms``).
-        Empty ``template_digest`` and ``volume`` mean the base bundle and no volume."""
+        Empty ``template_digest`` and ``volume`` mean the base bundle and no volume.
+        ``placement_pass`` is the placement's pass, which a cell with a control plane requires."""
         request = cell_pb2.CreateSandboxRequest(
             sandbox_id=sandbox_id,
             access_key=key,
@@ -245,6 +247,7 @@ class Cell:
             template_digest=template_digest,
             volume=volume,
             volume_gib=volume_gib,
+            placement_pass=placement_pass,
         )
         return self._call(lambda: self._stub.CreateSandbox(request, timeout=CALL_TIMEOUT_SECS))
 

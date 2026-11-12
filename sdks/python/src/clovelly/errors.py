@@ -41,6 +41,7 @@ __all__ = [
     "VolumeBusy",
     "VolumeUnreadable",
     "VolumeUnavailable",
+    "PlacementRefused",
     "NoSuchTemplate",
     "VerifierUnavailable",
     "Unauthenticated",
@@ -300,6 +301,11 @@ class VolumeUnavailable(ClovellyError):
     """VOLUME_UNAVAILABLE: the cell could not reach the volume's lease or blocks."""
 
 
+class PlacementRefused(ClovellyError):
+    """PLACEMENT_REFUSED: the cell creates a sandbox only with the control plane's pass for
+    this placement (this cell, sandbox, size and timeout), unexpired and used once."""
+
+
 class NoSuchTemplate(ClovellyError):
     """NO_SUCH_TEMPLATE: the sub-environment has no template of that name."""
 
@@ -346,6 +352,7 @@ _CELL_REASONS: _ErrorTable = {
     "VOLUME_BUSY": VolumeBusy,
     "VOLUME_UNREADABLE": VolumeUnreadable,
     "VOLUME_UNAVAILABLE": VolumeUnavailable,
+    "PLACEMENT_REFUSED": PlacementRefused,
 }
 
 _CONTROL_REASONS: _ErrorTable = {

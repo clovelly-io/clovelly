@@ -281,6 +281,7 @@ None), `.code` (the gRPC status code name) and `.details`.
 | `NO_CAPACITY` | `NoCapacity` (`.region`, `.retry_after` seconds) | control plane |
 | `UNKNOWN_REGION` | `UnknownRegion` (`.regions`, the published list) | control plane |
 | `BELOW_MINIMUM_TOP_UP` | `InvalidRequest` (credit is bought in the console) | control plane |
+| `PLACEMENT_REFUSED` | `PlacementRefused` (the cell creates a sandbox only with the control plane's pass for that placement, `placement_pass`, which the SDK sends for you; an SDK older than the pass gets this, or a generic error, from cells that check it) | cell |
 | `STORAGE` | `StorageUnavailable` | control plane |
 | `NO_SUCH_TEMPLATE` | `NoSuchTemplate` | control plane |
 

@@ -76,9 +76,12 @@ Revoking rather than rotating is simpler still: disable the `dek` key and every 
 
 ## Control-plane mTLS CA (ours)
 
-Cells check the control plane's certificate on their report channel, and its client
-certificate on `Drain`, against a CA baked into the measured image, so changing it is a
-release you can see in the log:
+Cells check the control plane's certificate on their report channel, its client
+certificate on `Drain`, and the certificate that signs each placement pass (every
+`CreateSandbox`), against a CA baked into the measured image, so changing it is a
+release you can see in the log. A cell accepts a pass under any CA of the bundle, so while
+the bundle holds both, placements signed under either work; step 3 must not come before
+every cell carries both, or creates on the older cells are refused (`PLACEMENT_REFUSED`):
 
 1. A release whose image carries the old and the new CA in `image/control-plane-ca.pem`.
 2. Pools move to it. Cells on the old release keep their schedule: each goes at its cap or

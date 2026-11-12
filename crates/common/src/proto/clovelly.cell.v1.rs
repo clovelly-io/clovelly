@@ -36,6 +36,11 @@ pub struct CreateSandboxRequest {
     pub volume: ::prost::alloc::string::String,
     #[prost(uint32, tag = "10")]
     pub volume_gib: u32,
+    /// The placement's pass, from PlaceSandbox (Placement.placement_pass): the control plane's
+    /// signature over this cell, this sandbox id, this size and timeout. A cell that has a
+    /// control plane creates nothing without one (PLACEMENT_REFUSED), and takes each once.
+    #[prost(string, tag = "11")]
+    pub placement_pass: ::prost::alloc::string::String,
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct CreateSandboxResponse {
@@ -256,6 +261,9 @@ pub enum ErrorReason {
     VolumeUnreadable = 19,
     /// UNAVAILABLE: the volume's lease or blocks could not be reached.
     VolumeUnavailable = 20,
+    /// PERMISSION_DENIED: CreateSandbox without a placement pass the control plane issued for
+    /// this cell, sandbox, size and timeout, or with one expired or used before.
+    PlacementRefused = 21,
 }
 impl ErrorReason {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -285,6 +293,7 @@ impl ErrorReason {
             Self::VolumeBusy => "VOLUME_BUSY",
             Self::VolumeUnreadable => "VOLUME_UNREADABLE",
             Self::VolumeUnavailable => "VOLUME_UNAVAILABLE",
+            Self::PlacementRefused => "PLACEMENT_REFUSED",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -311,6 +320,7 @@ impl ErrorReason {
             "VOLUME_BUSY" => Some(Self::VolumeBusy),
             "VOLUME_UNREADABLE" => Some(Self::VolumeUnreadable),
             "VOLUME_UNAVAILABLE" => Some(Self::VolumeUnavailable),
+            "PLACEMENT_REFUSED" => Some(Self::PlacementRefused),
             _ => None,
         }
     }

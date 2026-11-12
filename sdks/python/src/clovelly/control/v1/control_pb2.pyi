@@ -203,7 +203,7 @@ class PlaceSandboxRequest(_message.Message):
     def __init__(self, env_id: _Optional[str] = ..., subenv_id: _Optional[str] = ..., size: _Optional[_Union[Resources, _Mapping]] = ..., timeout_secs: _Optional[int] = ..., avoid_cells: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class Placement(_message.Message):
-    __slots__ = ("sandbox_id", "cell_id", "cell_address", "env_id", "subenv_id", "cold", "size", "timeout_secs", "cell_name")
+    __slots__ = ("sandbox_id", "cell_id", "cell_address", "env_id", "subenv_id", "cold", "size", "timeout_secs", "cell_name", "placement_pass")
     SANDBOX_ID_FIELD_NUMBER: _ClassVar[int]
     CELL_ID_FIELD_NUMBER: _ClassVar[int]
     CELL_ADDRESS_FIELD_NUMBER: _ClassVar[int]
@@ -213,6 +213,7 @@ class Placement(_message.Message):
     SIZE_FIELD_NUMBER: _ClassVar[int]
     TIMEOUT_SECS_FIELD_NUMBER: _ClassVar[int]
     CELL_NAME_FIELD_NUMBER: _ClassVar[int]
+    PLACEMENT_PASS_FIELD_NUMBER: _ClassVar[int]
     sandbox_id: str
     cell_id: str
     cell_address: str
@@ -222,7 +223,8 @@ class Placement(_message.Message):
     size: Resources
     timeout_secs: int
     cell_name: str
-    def __init__(self, sandbox_id: _Optional[str] = ..., cell_id: _Optional[str] = ..., cell_address: _Optional[str] = ..., env_id: _Optional[str] = ..., subenv_id: _Optional[str] = ..., cold: bool = ..., size: _Optional[_Union[Resources, _Mapping]] = ..., timeout_secs: _Optional[int] = ..., cell_name: _Optional[str] = ...) -> None: ...
+    placement_pass: str
+    def __init__(self, sandbox_id: _Optional[str] = ..., cell_id: _Optional[str] = ..., cell_address: _Optional[str] = ..., env_id: _Optional[str] = ..., subenv_id: _Optional[str] = ..., cold: bool = ..., size: _Optional[_Union[Resources, _Mapping]] = ..., timeout_secs: _Optional[int] = ..., cell_name: _Optional[str] = ..., placement_pass: _Optional[str] = ...) -> None: ...
 
 class LocateSandboxRequest(_message.Message):
     __slots__ = ("sandbox_id",)
@@ -664,7 +666,7 @@ class EnvironmentSummary(_message.Message):
     def __init__(self, env_id: _Optional[str] = ..., verifier_url: _Optional[str] = ..., created_unix_ms: _Optional[int] = ...) -> None: ...
 
 class Org(_message.Message):
-    __slots__ = ("org_id", "name", "role", "created_unix_ms", "environments", "granted_envs", "card_on_file", "paused")
+    __slots__ = ("org_id", "name", "role", "created_unix_ms", "environments", "granted_envs", "card_on_file", "paused", "services")
     ORG_ID_FIELD_NUMBER: _ClassVar[int]
     NAME_FIELD_NUMBER: _ClassVar[int]
     ROLE_FIELD_NUMBER: _ClassVar[int]
@@ -673,6 +675,7 @@ class Org(_message.Message):
     GRANTED_ENVS_FIELD_NUMBER: _ClassVar[int]
     CARD_ON_FILE_FIELD_NUMBER: _ClassVar[int]
     PAUSED_FIELD_NUMBER: _ClassVar[int]
+    SERVICES_FIELD_NUMBER: _ClassVar[int]
     org_id: str
     name: str
     role: str
@@ -681,7 +684,16 @@ class Org(_message.Message):
     granted_envs: _containers.RepeatedScalarFieldContainer[str]
     card_on_file: bool
     paused: str
-    def __init__(self, org_id: _Optional[str] = ..., name: _Optional[str] = ..., role: _Optional[str] = ..., created_unix_ms: _Optional[int] = ..., environments: _Optional[_Iterable[_Union[EnvironmentSummary, _Mapping]]] = ..., granted_envs: _Optional[_Iterable[str]] = ..., card_on_file: bool = ..., paused: _Optional[str] = ...) -> None: ...
+    services: _containers.RepeatedScalarFieldContainer[str]
+    def __init__(self, org_id: _Optional[str] = ..., name: _Optional[str] = ..., role: _Optional[str] = ..., created_unix_ms: _Optional[int] = ..., environments: _Optional[_Iterable[_Union[EnvironmentSummary, _Mapping]]] = ..., granted_envs: _Optional[_Iterable[str]] = ..., card_on_file: bool = ..., paused: _Optional[str] = ..., services: _Optional[_Iterable[str]] = ...) -> None: ...
+
+class SetServiceAccessRequest(_message.Message):
+    __slots__ = ("service", "allowed")
+    SERVICE_FIELD_NUMBER: _ClassVar[int]
+    ALLOWED_FIELD_NUMBER: _ClassVar[int]
+    service: str
+    allowed: bool
+    def __init__(self, service: _Optional[str] = ..., allowed: bool = ...) -> None: ...
 
 class DeleteOrgRequest(_message.Message):
     __slots__ = ()
@@ -1142,3 +1154,57 @@ class StripeWebhookRequest(_message.Message):
 class StripeWebhookResponse(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
+
+class GetBalanceRequest(_message.Message):
+    __slots__ = ("org_id",)
+    ORG_ID_FIELD_NUMBER: _ClassVar[int]
+    org_id: str
+    def __init__(self, org_id: _Optional[str] = ...) -> None: ...
+
+class Balance(_message.Message):
+    __slots__ = ("org_id", "balance_cents", "paused")
+    ORG_ID_FIELD_NUMBER: _ClassVar[int]
+    BALANCE_CENTS_FIELD_NUMBER: _ClassVar[int]
+    PAUSED_FIELD_NUMBER: _ClassVar[int]
+    org_id: str
+    balance_cents: int
+    paused: str
+    def __init__(self, org_id: _Optional[str] = ..., balance_cents: _Optional[int] = ..., paused: _Optional[str] = ...) -> None: ...
+
+class DebitRequest(_message.Message):
+    __slots__ = ("org_id", "cents", "idempotency_key", "memo")
+    ORG_ID_FIELD_NUMBER: _ClassVar[int]
+    CENTS_FIELD_NUMBER: _ClassVar[int]
+    IDEMPOTENCY_KEY_FIELD_NUMBER: _ClassVar[int]
+    MEMO_FIELD_NUMBER: _ClassVar[int]
+    org_id: str
+    cents: int
+    idempotency_key: str
+    memo: str
+    def __init__(self, org_id: _Optional[str] = ..., cents: _Optional[int] = ..., idempotency_key: _Optional[str] = ..., memo: _Optional[str] = ...) -> None: ...
+
+class DebitResponse(_message.Message):
+    __slots__ = ("debited", "balance_cents")
+    DEBITED_FIELD_NUMBER: _ClassVar[int]
+    BALANCE_CENTS_FIELD_NUMBER: _ClassVar[int]
+    debited: bool
+    balance_cents: int
+    def __init__(self, debited: bool = ..., balance_cents: _Optional[int] = ...) -> None: ...
+
+class GetEnvironmentUsageRequest(_message.Message):
+    __slots__ = ("env_id", "day")
+    ENV_ID_FIELD_NUMBER: _ClassVar[int]
+    DAY_FIELD_NUMBER: _ClassVar[int]
+    env_id: str
+    day: str
+    def __init__(self, env_id: _Optional[str] = ..., day: _Optional[str] = ...) -> None: ...
+
+class EnvironmentUsage(_message.Message):
+    __slots__ = ("env_id", "day", "cents")
+    ENV_ID_FIELD_NUMBER: _ClassVar[int]
+    DAY_FIELD_NUMBER: _ClassVar[int]
+    CENTS_FIELD_NUMBER: _ClassVar[int]
+    env_id: str
+    day: str
+    cents: int
+    def __init__(self, env_id: _Optional[str] = ..., day: _Optional[str] = ..., cents: _Optional[int] = ...) -> None: ...

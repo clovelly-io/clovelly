@@ -61,6 +61,26 @@ first check that failed.
 | Lie in metadata (environment, sub-environment, instance id, zone) | Each claim is bound by a check: env by REPORTDATA, instance and zone by MR_OWNER. The sub-environment only selects which DEK is sealed to the cell; a cell of the right environment asking for another sub-environment's DEK gets a certificate that names that sub-environment. |
 | Lie about the instance name | Nothing binds it to the quote, and nothing needs to. It only names the cell in its certificate's second SAN, `<instance>.<zone>.<subenv>.<env>.cells.clovelly.internal`; the zone in that name passed check 7, and a name that is not one DNS label is refused before any check runs. An unattested machine gets no certificate at all, and an attested cell of the sub-environment that claimed another cell's name already holds a certificate from the same CA and the same DEKs as that cell, so the name gains it nothing it did not have. |
 
+## Who may create a sandbox
+
+A cell creates a sandbox only with a placement pass (`placement_pass`, from `PlaceSandbox`): the control plane's
+signature, with a key and certificate it holds for nothing else, over the cell's name, the sandbox id, its size and
+its timeout, good for 10 minutes and taken once. Every deployment of the control plane holds a pass key of its own,
+issued at each deploy and good for 30 days, under the one control-plane CA, and its certificate names the
+deployment's GCP project number. The cell checks the pass under the control-plane CA baked into its measured image,
+and that its certificate names the cell's own project, before it touches a template, a volume or a credential, and
+refuses anything else (`PLACEMENT_REFUSED`). So nobody who merely reaches a cell can create a sandbox in your
+sub-environment, and a pass key from another deployment places nothing on this one's cells.
+
+| Attack | Stopped by, or not |
+|---|---|
+| Create a sandbox on a cell without asking the control plane, or reuse an old placement | Stopped: the pass names this cell and this sandbox, expires, and is taken once. |
+| Sign a pass with another of our certificates (the `Drain` or cell-channel one) | Stopped: the cell requires the pass-signing key usage. |
+| Sign a pass with a key leaked from another deployment (a staging or test deployment's) | Stopped: the certificate names its deployment's project, and the cell accepts only its own. The cell's project is the attested one: it takes the metadata server's project number only when the MR_OWNER it predicts (GCE's SHA-384 over the project, zone and instance, the same function the verifier uses) equals the MR_OWNER of the quote the verifier accepted at unlock, which the verifier checked against its own policy's project. A host that names another project in metadata gets a cell that refuses every create. A key of the same deployment, from any deploy in the last 30 days, still signs; none can be revoked before it expires. |
+| **We, through the control plane, create a sandbox in your sub-environment** | **Not stopped.** The control plane decides who places, so we, as its operators, could create a sandbox there, and that sandbox would get what the sub-environment's policy releases to any sandbox: its sealed credentials through the egress proxy, its volumes by name and its templates. It would not get your DEK or a key we could take away, and its cell's receipt log records it. A second signature on the pass, from a key you hold, would close this; it is not built. |
+| Replay a pass after the cell agent restarts, or on a cell whose clock is behind | The cell remembers passes in memory, for their 10 minutes: an agent that restarts within them could take one again if its sandbox is gone. A cell checks expiry by its own clock, which chrony keeps on Google's time; one whose first sync failed and runs behind accepts passes past their expiry. Both need a pass the control plane issued for that cell. |
+| Boot a cell without the control-plane metadata | Such a cell checks no pass (it has no control plane to place on it). Only we set an instance's metadata, at its creation through Compute, so this is ours to misuse, not anyone else's; the cell still unlocks only by attestation. |
+
 ## The relay in front of the cells
 
 Cells have no address of their own on the internet. Each region has one static address (listed in

@@ -92,6 +92,7 @@ describe("sandboxes", () => {
     assert.ok(control.authorizations.every((value) => value === "Bearer test-token"));
     const onCell = first.sandboxes.get(sb.id);
     assert.equal(onCell?.key.toString("hex"), sb.key);
+    assert.equal(onCell?.request.placementPass, "clp1.fake.cell-1", "the placement's pass goes to the cell");
     assert.deepEqual([onCell.cpuHalves, onCell.memoryGib, onCell.timeoutSecs], [2, 2, 600]);
 
     const python = await sb.exec("python3 -c 'print(6*7)'");

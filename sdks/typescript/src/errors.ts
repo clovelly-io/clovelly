@@ -76,6 +76,11 @@ export class VolumeUnreadable extends ClovellyError {}
 export class VolumeUnavailable extends ClovellyError {}
 /** STORAGE: the control plane could not store or read ciphertext. */
 export class StorageUnavailable extends ClovellyError {}
+/**
+ * PLACEMENT_REFUSED: the cell creates a sandbox only with the control plane's pass for this placement
+ * (this cell, sandbox, size and timeout), unexpired and used once.
+ */
+export class PlacementRefused extends ClovellyError {}
 /** NO_SUCH_TEMPLATE: the sub-environment has no template of that name. */
 export class NoSuchTemplate extends ClovellyError {}
 /** UNAUTHENTICATED: the control plane did not accept the API token, or the verifier the SDK token. */
@@ -216,6 +221,7 @@ const BY_REASON = {
   VOLUME_BUSY: VolumeBusy,
   VOLUME_UNREADABLE: VolumeUnreadable,
   VOLUME_UNAVAILABLE: VolumeUnavailable,
+  PLACEMENT_REFUSED: PlacementRefused,
   // control.proto (beyond the shared names above)
   UNAUTHENTICATED: Unauthenticated,
   NO_SUCH_ENVIRONMENT: NoSuchEnvironment,

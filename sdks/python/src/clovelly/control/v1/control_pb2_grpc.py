@@ -1214,6 +1214,11 @@ class AccountStub(object):
         Args:
             channel: A grpc.Channel.
         """
+        self.SetServiceAccess = channel.unary_unary(
+                '/clovelly.control.v1.Account/SetServiceAccess',
+                request_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.SetServiceAccessRequest.SerializeToString,
+                response_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.Org.FromString,
+                _registered_method=True)
         self.SignIn = channel.unary_unary(
                 '/clovelly.control.v1.Account/SignIn',
                 request_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.SignInRequest.SerializeToString,
@@ -1365,6 +1370,14 @@ class AccountServicer(object):
     but billing and members; developer keys and pools in the environments it is granted; read_only
     nothing that changes anything.
     """
+
+    def SetServiceAccess(self, request, context):
+        """Owner: lets one of the operator's services debit this organization's credit, or stops
+        it (an organization-wide action: a console action token, never an API key).
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
 
     def SignIn(self, request, context):
         """Who the caller is: joins any invitation for its verified email and returns its
@@ -1546,6 +1559,11 @@ class AccountServicer(object):
 
 def add_AccountServicer_to_server(servicer, server):
     rpc_method_handlers = {
+            'SetServiceAccess': grpc.unary_unary_rpc_method_handler(
+                    servicer.SetServiceAccess,
+                    request_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.SetServiceAccessRequest.FromString,
+                    response_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.Org.SerializeToString,
+            ),
             'SignIn': grpc.unary_unary_rpc_method_handler(
                     servicer.SignIn,
                     request_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.SignInRequest.FromString,
@@ -1703,6 +1721,33 @@ class Account(object):
     but billing and members; developer keys and pools in the environments it is granted; read_only
     nothing that changes anything.
     """
+
+    @staticmethod
+    def SetServiceAccess(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/clovelly.control.v1.Account/SetServiceAccess',
+            clovelly_dot_control_dot_v1_dot_control__pb2.SetServiceAccessRequest.SerializeToString,
+            clovelly_dot_control_dot_v1_dot_control__pb2.Org.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
 
     @staticmethod
     def SignIn(request,
@@ -2423,6 +2468,246 @@ class Account(object):
             '/clovelly.control.v1.Account/StripeWebhook',
             clovelly_dot_control_dot_v1_dot_control__pb2.StripeWebhookRequest.SerializeToString,
             clovelly_dot_control_dot_v1_dot_control__pb2.StripeWebhookResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+
+class ServicesStub(object):
+    """Services the operator runs on the platform (products built on sandboxes) call these with
+    a service token (Authorization: Bearer clsvc_...), which the operator issues to one of its
+    own organizations and which no customer holds. Each token carries one right. With
+    accounts, a service reads and debits the credit of organizations that allow it
+    (Account.SetServiceAccess), and reads what the runtime billed the service's own
+    organization for one of its environments; with environments, it creates environments in
+    its own organization and nothing else.
+    """
+
+    def __init__(self, channel):
+        """Constructor.
+
+        Args:
+            channel: A grpc.Channel.
+        """
+        self.GetBalance = channel.unary_unary(
+                '/clovelly.control.v1.Services/GetBalance',
+                request_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.GetBalanceRequest.SerializeToString,
+                response_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.Balance.FromString,
+                _registered_method=True)
+        self.Debit = channel.unary_unary(
+                '/clovelly.control.v1.Services/Debit',
+                request_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.DebitRequest.SerializeToString,
+                response_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.DebitResponse.FromString,
+                _registered_method=True)
+        self.GetEnvironmentUsage = channel.unary_unary(
+                '/clovelly.control.v1.Services/GetEnvironmentUsage',
+                request_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.GetEnvironmentUsageRequest.SerializeToString,
+                response_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.EnvironmentUsage.FromString,
+                _registered_method=True)
+        self.CreateEnvironment = channel.unary_unary(
+                '/clovelly.control.v1.Services/CreateEnvironment',
+                request_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.CreateEnvironmentRequest.SerializeToString,
+                response_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.CreateEnvironmentResponse.FromString,
+                _registered_method=True)
+
+
+class ServicesServicer(object):
+    """Services the operator runs on the platform (products built on sandboxes) call these with
+    a service token (Authorization: Bearer clsvc_...), which the operator issues to one of its
+    own organizations and which no customer holds. Each token carries one right. With
+    accounts, a service reads and debits the credit of organizations that allow it
+    (Account.SetServiceAccess), and reads what the runtime billed the service's own
+    organization for one of its environments; with environments, it creates environments in
+    its own organization and nothing else.
+    """
+
+    def GetBalance(self, request, context):
+        """An organization's balance and whether its placements are paused.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def Debit(self, request, context):
+        """Takes cents from the organization's credit, once per idempotency key: a repeat with the
+        same key changes nothing and answers debited = false. Only while the organization allows
+        the service: once it stops it, every debit is refused (NOT_FOUND). Credit soonest to expire goes
+        first; what no credit covers is owed, as for usage.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetEnvironmentUsage(self, request, context):
+        """What the runtime billed the service's own organization for one of its environments on a
+        finished UTC day: the cells' cell-minutes and egress, priced as the ledger spent them. A
+        product that runs sandboxes for a customer in an environment of its own
+        passes this through. NOT_FOUND for an environment of another organization; a day
+        not yet finished is refused.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def CreateEnvironment(self, request, context):
+        """Only for a token with the environments right, which may do nothing else: creates an
+        environment in the service's own organization, as an admin of it would (the verifier must
+        answer and serve its CA), and answers its first key, read_write, shown once. For an
+        environment of the service's own organization that exists already with the same verifier
+        and has no sub-environment yet (a retry whose key was lost before anything was built on
+        it), every earlier key is revoked and a new first key issued. An environment with a
+        sub-environment is never rekeyed. Any other token, or another organization's environment,
+        is refused.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+
+def add_ServicesServicer_to_server(servicer, server):
+    rpc_method_handlers = {
+            'GetBalance': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetBalance,
+                    request_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.GetBalanceRequest.FromString,
+                    response_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.Balance.SerializeToString,
+            ),
+            'Debit': grpc.unary_unary_rpc_method_handler(
+                    servicer.Debit,
+                    request_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.DebitRequest.FromString,
+                    response_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.DebitResponse.SerializeToString,
+            ),
+            'GetEnvironmentUsage': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetEnvironmentUsage,
+                    request_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.GetEnvironmentUsageRequest.FromString,
+                    response_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.EnvironmentUsage.SerializeToString,
+            ),
+            'CreateEnvironment': grpc.unary_unary_rpc_method_handler(
+                    servicer.CreateEnvironment,
+                    request_deserializer=clovelly_dot_control_dot_v1_dot_control__pb2.CreateEnvironmentRequest.FromString,
+                    response_serializer=clovelly_dot_control_dot_v1_dot_control__pb2.CreateEnvironmentResponse.SerializeToString,
+            ),
+    }
+    generic_handler = grpc.method_handlers_generic_handler(
+            'clovelly.control.v1.Services', rpc_method_handlers)
+    server.add_generic_rpc_handlers((generic_handler,))
+    server.add_registered_method_handlers('clovelly.control.v1.Services', rpc_method_handlers)
+
+
+ # This class is part of an EXPERIMENTAL API.
+class Services(object):
+    """Services the operator runs on the platform (products built on sandboxes) call these with
+    a service token (Authorization: Bearer clsvc_...), which the operator issues to one of its
+    own organizations and which no customer holds. Each token carries one right. With
+    accounts, a service reads and debits the credit of organizations that allow it
+    (Account.SetServiceAccess), and reads what the runtime billed the service's own
+    organization for one of its environments; with environments, it creates environments in
+    its own organization and nothing else.
+    """
+
+    @staticmethod
+    def GetBalance(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/clovelly.control.v1.Services/GetBalance',
+            clovelly_dot_control_dot_v1_dot_control__pb2.GetBalanceRequest.SerializeToString,
+            clovelly_dot_control_dot_v1_dot_control__pb2.Balance.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def Debit(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/clovelly.control.v1.Services/Debit',
+            clovelly_dot_control_dot_v1_dot_control__pb2.DebitRequest.SerializeToString,
+            clovelly_dot_control_dot_v1_dot_control__pb2.DebitResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetEnvironmentUsage(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/clovelly.control.v1.Services/GetEnvironmentUsage',
+            clovelly_dot_control_dot_v1_dot_control__pb2.GetEnvironmentUsageRequest.SerializeToString,
+            clovelly_dot_control_dot_v1_dot_control__pb2.EnvironmentUsage.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CreateEnvironment(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/clovelly.control.v1.Services/CreateEnvironment',
+            clovelly_dot_control_dot_v1_dot_control__pb2.CreateEnvironmentRequest.SerializeToString,
+            clovelly_dot_control_dot_v1_dot_control__pb2.CreateEnvironmentResponse.FromString,
             options,
             channel_credentials,
             insecure,

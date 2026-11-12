@@ -299,6 +299,7 @@ Each `ErrorReason` in `cell.proto` and `control.proto` has its own subclass:
 | `NO_CAPACITY` | `NoCapacity` (`region`, `retryAfter` seconds) |
 | `UNKNOWN_REGION` | `UnknownRegion` (`regions`, the published list) |
 | `BELOW_MINIMUM_TOP_UP` | `InvalidRequest` (credit is bought in the console) |
+| `PLACEMENT_REFUSED` | `PlacementRefused` (the cell creates a sandbox only with the control plane's pass for that placement, `placementPass`, which the SDK sends for you; an SDK older than the pass gets this, or a generic error, from cells that check it) |
 | `POLICY_REFUSED` | `PolicyRefused` |
 | `CREDENTIAL_UNAVAILABLE` | `CredentialUnavailable` |
 | `STORAGE` | `StorageUnavailable` |

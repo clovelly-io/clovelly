@@ -123,6 +123,8 @@ pub enum CellError {
     Receipt(#[from] SignerError),
     #[error("egress proxy: {0}")]
     Proxy(#[from] SupervisorError),
+    #[error("no placement for this create: {0}")]
+    PlacementRefused(String),
 }
 
 impl CellError {
@@ -154,6 +156,7 @@ impl CellError {
             CellError::Volume(_) => (ErrorReason::VolumeUnavailable, Code::Unavailable),
             CellError::PolicyRefused(_) => (ErrorReason::PolicyRefused, Code::FailedPrecondition),
             CellError::Credentials(_) => (ErrorReason::CredentialUnavailable, Code::Unavailable),
+            CellError::PlacementRefused(_) => (ErrorReason::PlacementRefused, Code::PermissionDenied),
         }
     }
 }

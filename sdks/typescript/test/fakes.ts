@@ -432,6 +432,7 @@ export class FakeControl {
         memoryGib: request.size.memoryGib || 2,
       },
       timeoutSecs: request.timeoutSecs || 900,
+      placementPass: `clp1.fake.${cell.id}`,
     };
     this.placements.set(placement.sandboxId, placement);
     callback(null, this.tamper?.(placement) ?? placement);

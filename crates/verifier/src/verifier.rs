@@ -555,14 +555,9 @@ fn measurements(ev: &Evidence, q: &Quote, release: Option<&Release>) -> Outcome 
     }
 }
 
-/// What GCE writes to MR_OWNER: SHA-384 of the instance's project, zone and instance
-/// (go-tdx-guest `gce.PZIDPayload`). Zones are DNS labels, so no JSON escaping arises.
-pub fn mr_owner(instance_id: u64, project_number: u64, zone: &common::ids::Zone) -> Measurement {
-    Measurement::sha384(
-        format!(r#"{{"instanceId":{instance_id},"numericalProjectId":{project_number},"zone":"{zone}"}}"#)
-            .as_bytes(),
-    )
-}
+/// What GCE writes to MR_OWNER, shared with the cell, which recomputes it to learn its
+/// attested project (`common::tdx::mr_owner`).
+pub use common::tdx::mr_owner;
 
 fn skip_all_but(r: &mut Report, failed: Check) {
     for c in Check::ALL.into_iter().filter(|&c| c != failed) {

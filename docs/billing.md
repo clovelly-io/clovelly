@@ -11,7 +11,7 @@ Signing up, the console, deploying your verifier and creating an environment are
 
 Three kinds, drawn soonest-expiring first:
 
-- **Period credit**: the environment fee, charged when your card goes on file and at the start of each billing period. It pays only for that period and expires when it ends.
+- **Period credit**: the environment fee, per environment you have, charged when your card goes on file and at the start of each billing period. It pays only for that period and expires when it ends. An organization with no environment is charged no fee; a first environment made during a period is charged that period's fee within a minute.
 - **Bought credit**: top-ups and auto-recharge, at least $100.00, expiring 12 months after payment. It is never refunded.
 - **Operator credit**: granted by us, expiring 12 months after it is granted.
 

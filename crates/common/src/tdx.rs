@@ -27,6 +27,16 @@ impl Measurement {
     }
 }
 
+/// What GCE writes to MR_OWNER: SHA-384 of the instance's project, zone and instance
+/// (go-tdx-guest `gce.PZIDPayload`). The verifier checks a quote's MR_OWNER against this at
+/// unlock, with its policy's project; a cell recomputes it with its metadata's project to
+/// learn whether that is the project the verifier vouched for (`crate::pass::Project::attested`).
+/// One function for both, so the two cannot drift. Zones are DNS labels, so no JSON escaping
+/// arises.
+pub fn mr_owner(instance_id: u64, project_number: u64, zone: &crate::ids::Zone) -> Measurement {
+    Measurement::sha384(format!(r#"{{"instanceId":{instance_id},"numericalProjectId":{project_number},"zone":"{zone}"}}"#).as_bytes())
+}
+
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 #[error("{0:?} is not 96 hex digits")]
 pub struct BadMeasurement(String);
@@ -180,6 +190,15 @@ fn array<const N: usize>(bytes: &[u8]) -> [u8; N] {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// MR_OWNER's preimage, byte for byte: the digest computed independently (Python's
+    /// hashlib over the same JSON) for a made-up instance and project.
+    #[test]
+    fn mr_owner_is_sha384_of_gces_project_zone_and_instance() {
+        let got = mr_owner(1_234_567_890_123_456_789, 210_987_654_321, &"us-central1-a".parse().unwrap());
+        let want: Measurement = "8b94d43c64e54a08516e2e55c2c386a3c53ce323d971e94e36e636a6f5b5e29b4f448f7a044f66b7383c3e1e641703e2".parse().unwrap();
+        assert_eq!(got, want);
+    }
 
     /// Builds a quote with distinct, recognisable field values.
     fn quote(version: u16, rtmrs: [[u8; 48]; 4], report_data: [u8; 64]) -> Vec<u8> {

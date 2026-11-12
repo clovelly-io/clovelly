@@ -57,6 +57,8 @@ export interface CreateSandboxParams extends SandboxKey {
   volume?: string;
   /** The volume's size in GiB when it is created; 0 or absent: 1. */
   volumeGib?: number;
+  /** The placement's pass, which a cell with a control plane requires. */
+  placementPass?: string;
 }
 
 export interface ExecParams extends SandboxKey {
@@ -180,6 +182,7 @@ export class Cell {
       templateDigest: params.templateDigest ?? "",
       volume: params.volume ?? "",
       volumeGib: params.volumeGib ?? 0,
+      placementPass: params.placementPass ?? "",
     });
   }
 

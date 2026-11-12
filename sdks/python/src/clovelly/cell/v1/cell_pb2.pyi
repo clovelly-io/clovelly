@@ -30,6 +30,7 @@ class ErrorReason(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     VOLUME_BUSY: _ClassVar[ErrorReason]
     VOLUME_UNREADABLE: _ClassVar[ErrorReason]
     VOLUME_UNAVAILABLE: _ClassVar[ErrorReason]
+    PLACEMENT_REFUSED: _ClassVar[ErrorReason]
 
 class ExitKind(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
@@ -63,6 +64,7 @@ TEMPLATE_UNAVAILABLE: ErrorReason
 VOLUME_BUSY: ErrorReason
 VOLUME_UNREADABLE: ErrorReason
 VOLUME_UNAVAILABLE: ErrorReason
+PLACEMENT_REFUSED: ErrorReason
 EXIT_KIND_UNSPECIFIED: ExitKind
 EXIT_KIND_RUNNING: ExitKind
 EXIT_KIND_EXITED: ExitKind
@@ -74,7 +76,7 @@ EXIT_KIND_CELL_LOST: ExitKind
 EXIT_KIND_CELL_END: ExitKind
 
 class CreateSandboxRequest(_message.Message):
-    __slots__ = ("sandbox_id", "access_key", "cpu_halves", "memory_gib", "timeout_secs", "command", "env", "template_digest", "volume", "volume_gib")
+    __slots__ = ("sandbox_id", "access_key", "cpu_halves", "memory_gib", "timeout_secs", "command", "env", "template_digest", "volume", "volume_gib", "placement_pass")
     class EnvEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -92,6 +94,7 @@ class CreateSandboxRequest(_message.Message):
     TEMPLATE_DIGEST_FIELD_NUMBER: _ClassVar[int]
     VOLUME_FIELD_NUMBER: _ClassVar[int]
     VOLUME_GIB_FIELD_NUMBER: _ClassVar[int]
+    PLACEMENT_PASS_FIELD_NUMBER: _ClassVar[int]
     sandbox_id: str
     access_key: bytes
     cpu_halves: int
@@ -102,7 +105,8 @@ class CreateSandboxRequest(_message.Message):
     template_digest: str
     volume: str
     volume_gib: int
-    def __init__(self, sandbox_id: _Optional[str] = ..., access_key: _Optional[bytes] = ..., cpu_halves: _Optional[int] = ..., memory_gib: _Optional[int] = ..., timeout_secs: _Optional[int] = ..., command: _Optional[_Iterable[str]] = ..., env: _Optional[_Mapping[str, str]] = ..., template_digest: _Optional[str] = ..., volume: _Optional[str] = ..., volume_gib: _Optional[int] = ...) -> None: ...
+    placement_pass: str
+    def __init__(self, sandbox_id: _Optional[str] = ..., access_key: _Optional[bytes] = ..., cpu_halves: _Optional[int] = ..., memory_gib: _Optional[int] = ..., timeout_secs: _Optional[int] = ..., command: _Optional[_Iterable[str]] = ..., env: _Optional[_Mapping[str, str]] = ..., template_digest: _Optional[str] = ..., volume: _Optional[str] = ..., volume_gib: _Optional[int] = ..., placement_pass: _Optional[str] = ...) -> None: ...
 
 class CreateSandboxResponse(_message.Message):
     __slots__ = ("started_unix_ms", "runsc_ms")

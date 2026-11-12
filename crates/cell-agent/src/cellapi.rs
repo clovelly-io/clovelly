@@ -4,12 +4,14 @@
 //! [`Size`]) before anything reaches the sandbox manager or runsc. Refusals carry their
 //! reason in the `clovelly-error` trailer.
 
+use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{Duration, UNIX_EPOCH};
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use common::ids::SandboxId;
+use common::pass::{PassChecker, SKEW_SECS};
 use common::proto::cell as pb;
 use common::proto::cell::cell_server::Cell;
 use common::proto::control::DrainState;
@@ -60,6 +62,55 @@ pub struct CellApi {
     pub execs: AtomicU64,
     /// The template cache; none: creates naming a template are refused.
     pub templates: Option<Arc<Templates>>,
+    /// Whether a create needs the control plane's placement pass.
+    pub passes: Passes,
+}
+
+/// Whether this cell checks placement passes (`common::pass`) before it creates a sandbox.
+pub enum Passes {
+    /// No control plane (`dev-serve`, the in-guest harness): nothing is placed here, so there is
+    /// no pass to check.
+    Unchecked,
+    /// A control plane but not its CA: no pass can be checked, so every create is refused.
+    Refused,
+    /// Every create needs a pass the control plane's CA vouches for, for this cell.
+    Checked(Box<PassGate>),
+}
+
+/// A cell's check of placement passes: the control plane's CA, the cell's own name, and the
+/// sandbox ids it has created, each kept until its pass's expiry, so a pass is used once.
+pub struct PassGate {
+    checker: PassChecker,
+    cell: String,
+    used: Mutex<HashMap<String, u64>>,
+}
+
+impl PassGate {
+    pub fn new(checker: PassChecker, cell: String) -> Self {
+        Self { checker, cell, used: Mutex::new(HashMap::new()) }
+    }
+
+    /// Checks a create's pass: issued by the control plane for this cell and exactly this
+    /// sandbox, size and timeout, unexpired at `now` (Unix seconds) and not used before. The
+    /// pass's expiry, for [`PassGate::spend`] once the create has succeeded.
+    fn admit(&self, req: &pb::CreateSandboxRequest, now: u64) -> Result<u64, CellError> {
+        let refused = |e: common::pass::PassError| CellError::PlacementRefused(e.to_string());
+        let claims = self.checker.check(&req.placement_pass, now).map_err(refused)?;
+        claims.matches(&self.cell, &req.sandbox_id, req.cpu_halves, req.memory_gib, req.timeout_secs).map_err(refused)?;
+        if self.used.lock().unwrap_or_else(|p| p.into_inner()).contains_key(&req.sandbox_id) {
+            return Err(CellError::PlacementRefused("this placement's pass was used before".into()));
+        }
+        Ok(claims.exp)
+    }
+
+    /// Records a sandbox id whose create succeeded, until its pass's expiry, so the pass is
+    /// not taken again; a create that failed spends nothing, and its refusal says why. Two
+    /// creates racing on one pass cannot both succeed: the sandbox id is the same.
+    fn spend(&self, sandbox: &str, exp: u64, now: u64) {
+        let mut used = self.used.lock().unwrap_or_else(|p| p.into_inner());
+        used.retain(|_, e| e.saturating_add(SKEW_SECS) >= now);
+        used.insert(sandbox.to_owned(), exp);
+    }
 }
 
 fn parse_id(s: &str) -> Result<SandboxId, Status> {
@@ -190,6 +241,15 @@ impl Cell for CellApi {
         req: Request<pb::CreateSandboxRequest>,
     ) -> Result<Response<pb::CreateSandboxResponse>, Status> {
         let req = req.into_inner();
+        // Before anything else: only a placement the control plane issued for this cell.
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
+        let spend = match &self.passes {
+            Passes::Unchecked => None,
+            Passes::Refused => {
+                return Err(refusal(&CellError::PlacementRefused("this cell holds no control-plane CA to check passes with".into())));
+            }
+            Passes::Checked(gate) => Some((gate, req.sandbox_id.clone(), gate.admit(&req, now).map_err(|e| refusal(&e))?)),
+        };
         let (template, _) = parse_extras(&req)?;
         let mut create = parse_create(req)?;
         if let Some(digest) = template {
@@ -211,6 +271,9 @@ impl Cell for CellApi {
             .create(create, self.terms.get(), policy, released, self.terms.dek())
             .await
             .map_err(|e| refusal(&e))?;
+        if let Some((gate, sandbox, exp)) = spend {
+            gate.spend(&sandbox, exp, now);
+        }
         Ok(Response::new(pb::CreateSandboxResponse {
             started_unix_ms: u64::try_from(
                 created.started.duration_since(UNIX_EPOCH).unwrap_or_default().as_millis(),
@@ -458,11 +521,57 @@ mod tests {
             template_digest: String::new(),
             volume: String::new(),
             volume_gib: 0,
+            placement_pass: String::new(),
         }
     }
 
     fn reason(s: &Status) -> &str {
         s.metadata().get("clovelly-error").and_then(|v| v.to_str().ok()).unwrap_or("")
+    }
+
+    /// The phase 20 review's A1 and the audit's 2.1.1, as decided 2026-11-11 (1A): a cell with a
+    /// control plane creates a sandbox only with a pass the control plane's CA vouches for,
+    /// for this cell and exactly this sandbox, size and timeout, once.
+    #[test]
+    fn a_create_without_the_control_planes_placement_is_refused() {
+        use common::pass::{PASS_SIGNING, PassClaims, PassSigner};
+        use der::Encode;
+        use rcgen::{BasicConstraints, CertificateParams, CustomExtension, DnType, IsCa, Issuer, KeyPair};
+        let ca_key = KeyPair::generate().unwrap();
+        let mut ca_params = CertificateParams::new(Vec::<String>::new()).unwrap();
+        ca_params.is_ca = IsCa::Ca(BasicConstraints::Unconstrained);
+        let ca = ca_params.self_signed(&ca_key).unwrap();
+        let issuer = Issuer::new(ca_params, ca_key);
+        let pass_key = KeyPair::generate().unwrap();
+        let mut params = CertificateParams::new(vec!["pass".into()]).unwrap();
+        let project: common::pass::Project = "210987654321".parse().unwrap();
+        params.distinguished_name.push(DnType::CommonName, common::pass::subject_name(project));
+        let eku = x509_cert::ext::pkix::ExtendedKeyUsage(vec![PASS_SIGNING]).to_der().unwrap();
+        params.custom_extensions = vec![CustomExtension::from_oid_content(&[2, 5, 29, 37], eku)];
+        let signer = PassSigner::from_der(params.signed_by(&pass_key, &issuer).unwrap().der(), &pass_key.serialize_der()).unwrap();
+        let checker = PassChecker::from_ca_pem(&common::b64::pem("CERTIFICATE", ca.der()), project).unwrap();
+        let cell = "clovelly-1a2b3c4d.us-central1-a.a.acme.cells.clovelly.internal";
+        let gate = PassGate::new(checker, cell.into());
+        let now = 1_800_000_000;
+        let id = SandboxId::generate().to_string();
+        let pass = |sandbox: &str, timeout: u32| {
+            signer
+                .sign(&PassClaims { v: 1, cell: cell.into(), sandbox: sandbox.into(), cpu_halves: 2, memory_gib: 2, timeout_secs: timeout, exp: now + 600 })
+                .unwrap()
+        };
+        let with = |p: String| pb::CreateSandboxRequest { placement_pass: p, ..create(&id, 32, 2, 2, 900) };
+        let refused = |r: Result<u64, CellError>| reason(&refusal(&r.unwrap_err())).to_owned();
+        assert_eq!(refused(gate.admit(&create(&id, 32, 2, 2, 900), now)), "PLACEMENT_REFUSED", "no pass");
+        assert_eq!(refused(gate.admit(&with(pass(&SandboxId::generate().to_string(), 900)), now)), "PLACEMENT_REFUSED", "another sandbox's");
+        assert_eq!(refused(gate.admit(&with(pass(&id, 86_400)), now)), "PLACEMENT_REFUSED", "a longer timeout than asked");
+        assert_eq!(refused(gate.admit(&with(pass(&id, 900)), now + 3600)), "PLACEMENT_REFUSED", "expired");
+        // A create that fails after the check spends nothing (the review's A5); one that
+        // succeeds spends the pass.
+        let exp = gate.admit(&with(pass(&id, 900)), now).unwrap();
+        gate.admit(&with(pass(&id, 900)), now).unwrap();
+        gate.spend(&id, exp, now);
+        assert_eq!(refused(gate.admit(&with(pass(&id, 900)), now)), "PLACEMENT_REFUSED", "used once");
+        assert_eq!(refusal(&CellError::PlacementRefused(String::new())).code(), tonic::Code::PermissionDenied);
     }
 
     /// Criterion 14: an id of another length is a typed error at the API, before

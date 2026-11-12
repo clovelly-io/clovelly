@@ -42,6 +42,7 @@ class HappyPath(Fixture):
         self.assertEqual(len(create.access_key), 32)
         self.assertEqual(create.access_key.hex(), sb.key)
         self.assertEqual((create.cpu_halves, create.memory_gib, create.timeout_secs), (3, 3, 600))
+        self.assertEqual(create.placement_pass, f"clp1.fake.{sb.cell_id}", "the placement's pass goes to the cell")
         self.assertEqual(list(create.command), ["/bin/sh", "-c", "sleep 600"])
         self.assertEqual(dict(create.env), {"A": "1"})
         self.assertEqual((sb.cell_id, sb.subenv, sb.cold), ("cell-1", "a", False))

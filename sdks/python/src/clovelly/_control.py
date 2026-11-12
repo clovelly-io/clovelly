@@ -62,6 +62,9 @@ class Placement:
     cpu_halves: int
     memory_gib: int
     timeout_secs: int
+    # PlaceSandbox's pass for this placement, which the cell checks at CreateSandbox; "" from
+    # LocateSandbox.
+    placement_pass: str = ""
 
     @classmethod
     def _from_proto(cls, msg: control_pb2.Placement) -> Placement:
@@ -83,6 +86,7 @@ class Placement:
             cpu_halves=msg.size.cpu_halves,
             memory_gib=msg.size.memory_gib,
             timeout_secs=msg.timeout_secs,
+            placement_pass=msg.placement_pass,
         )
 
 

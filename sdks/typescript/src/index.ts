@@ -51,6 +51,7 @@ export {
   NoSuchTemplate,
   PermissionDenied,
   PolicyRefused,
+  PlacementRefused,
   ProtocolError,
   RuntimeFailure,
   SandboxEnded,

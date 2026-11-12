@@ -220,6 +220,7 @@ class Environment:
                     template_digest=template_digest,
                     volume=volume_name,
                     volume_gib=gib,
+                    placement_pass=placement.placement_pass,
                 )
                 timings["create_ms"] += _ms(started)
             except _REPLACE_ON as err:

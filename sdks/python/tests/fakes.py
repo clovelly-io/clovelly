@@ -341,6 +341,7 @@ class FakeControl(control_pb2_grpc.ControlServicer):
             cold=False,
             size=size,
             timeout_secs=timeout,
+            placement_pass=f"clp1.fake.{cell.cell_id}",
         )
 
     def PlaceSandbox(self, request, context):
